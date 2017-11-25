@@ -20,8 +20,7 @@
  * in part by Phil Hopkins (phopkins@caltech.edu) for GIZMO (new variables, 
  * and different naming conventions for some old variables)
  */
-  /* yy */
-  
+
 
 #ifndef ALLVARS_H
 #define ALLVARS_H
@@ -161,6 +160,8 @@
 
 
 #include "eos/eos.h"
+
+
 
 
 
@@ -1743,6 +1744,8 @@ extern ALIGN(32) struct particle_data
     short int wakeup;                     /*!< flag to wake up particle */
 #endif
 #endif
+    
+
 }
  *P,				/*!< holds particle data on local processor */
  *DomainPartBuf;		/*!< buffer for particle data used in domain decomposition */
