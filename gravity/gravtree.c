@@ -94,7 +94,7 @@ void gravity_tree(void)
 #endif
 #endif
     
-    
+
     
     CPU_Step[CPU_MISC] += measure_time();
     
@@ -368,8 +368,7 @@ void gravity_tree(void)
                     
                     GravDataIn[j].Type = P[place].Type;
                     GravDataIn[j].OldAcc = P[place].OldAcc;
-                    for(k = 0; k < 3; k++)
-                        GravDataIn[j].Pos[k] = P[place].Pos[k];
+                    for(k = 0; k < 3; k++) {GravDataIn[j].Pos[k] = P[place].Pos[k];}
                     
 #if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
                     GravDataIn[j].Mass = P[place].Mass;
@@ -511,7 +510,7 @@ void gravity_tree(void)
                     for(k = 0; k < 3; k++)
                         P[place].GravAccel[k] += GravDataOut[j].Acc[k];
                     
-                    
+
 #ifdef BH_CALC_DISTANCES
                     /* GravDataOut[j].min_dist_to_bh contains the min dist to particle "P[place]" on another
                      task.  We now check if it is smaller than the current value */
@@ -754,6 +753,7 @@ void gravity_tree(void)
     
     
     add_analytic_gravitational_forces();
+    
     
     
     /* Now the force computation is finished */

@@ -14,9 +14,3 @@
  *         This file was written by Phil Hopkins (phopkins@caltech.edu) for GIZMO.
  */
 
-#define CBE_DEBUG
-
-
-// moment ordering convention: 0, x, y, z, xx, yy, zz, xy, xz, yz
-
-
