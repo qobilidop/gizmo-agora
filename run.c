@@ -848,6 +848,7 @@ void write_cpu_log(void)
 	      "   agsdensity %10.2f  %5.1f%%\n"
 	      "   agscomm    %10.2f  %5.1f%%\n"
 	      "   agsimbal   %10.2f  %5.1f%%\n"
+          "   agsmisc    %10.2f  %5.1f%%\n"
 #endif
 	      "pmgrav        %10.2f  %5.1f%%\n"
 	      "hydro         %10.2f  %5.1f%%\n"
@@ -895,6 +896,7 @@ void write_cpu_log(void)
     All.CPU_Sum[CPU_AGSDENSCOMPUTE], (All.CPU_Sum[CPU_AGSDENSCOMPUTE]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_AGSDENSCOMM], (All.CPU_Sum[CPU_AGSDENSCOMM]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_AGSDENSWAIT], (All.CPU_Sum[CPU_AGSDENSWAIT]) / All.CPU_Sum[CPU_ALL] * 100,
+    All.CPU_Sum[CPU_AGSDENSMISC], (All.CPU_Sum[CPU_AGSDENSMISC]) / All.CPU_Sum[CPU_ALL] * 100,
 #endif
     All.CPU_Sum[CPU_MESH], (All.CPU_Sum[CPU_MESH]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_DENSCOMPUTE] + All.CPU_Sum[CPU_DENSWAIT] + All.CPU_Sum[CPU_DENSCOMM] + All.CPU_Sum[CPU_DENSMISC]

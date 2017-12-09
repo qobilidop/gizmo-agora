@@ -370,6 +370,10 @@ void gravity_tree(void)
                     GravDataIn[j].OldAcc = P[place].OldAcc;
                     for(k = 0; k < 3; k++) {GravDataIn[j].Pos[k] = P[place].Pos[k];}
                     
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+                    for(k = 0; k < 3; k++) {GravDataIn[j].Vel[k] = P[place].Vel[k];}
+                    GravDataIn[j].dt_step = P[place].dt_step;
+#endif
 #if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
                     GravDataIn[j].Mass = P[place].Mass;
 #endif
@@ -514,6 +518,7 @@ void gravity_tree(void)
 #ifdef BH_CALC_DISTANCES
                     /* GravDataOut[j].min_dist_to_bh contains the min dist to particle "P[place]" on another
                      task.  We now check if it is smaller than the current value */
+                    if(Ewald_iter==0)
                     if(GravDataOut[j].min_dist_to_bh < P[place].min_dist_to_bh)
                     {
                         P[place].min_dist_to_bh = GravDataOut[j].min_dist_to_bh;

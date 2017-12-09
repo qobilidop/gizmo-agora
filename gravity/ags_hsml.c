@@ -844,7 +844,7 @@ int ags_density_evaluate(int target, int mode, int *exportflag, int *exportnodec
                         if(TimeBinActive[P[j].TimeBin]) {if(vsig > P[j].AGS_vsig) P[j].AGS_vsig = vsig;}
                         if(vsig > out.AGS_vsig) {out.AGS_vsig = vsig;}
 #ifdef WAKEUP
-                        if(vsig > WAKEUP*P[j].AGS_vsig) {P[j].wakeup = 1;}
+                        if(!(TimeBinActive[P[j].TimeBin]) && (All.Time > All.TimeBegin)) {if(vsig > WAKEUP*P[j].AGS_vsig) {P[j].wakeup = 1;}}
 #if defined(GALSF)
                         if((P[j].Type == 4)||((All.ComovingIntegrationOn==0)&&((P[j].Type == 2)||(P[j].Type==3)))) {P[j].wakeup = 0;} // don't wakeup star particles, or risk 2x-counting feedback events! //
 #endif
@@ -937,5 +937,23 @@ double ags_return_minsoft(int i)
     return All.ForceSoftening[P[i].Type]; // this is the user-specified minimum
 }
 
+
+/* routine to return effective particle sizes (inter-particle separation) based on AGS_Hsml saved values */
+double INLINE_FUNC Get_Particle_Size_AGS(int i)
+{
+    /* in previous versions of the code, we took NumNgb^(1/NDIMS) here; however, now we
+     take that when NumNgb is computed (at the end of the density routine), so we
+     don't have to re-compute it each time. That makes this function fast enough to
+     call -inside- of loops (e.g. hydro computations) */
+#if (NUMDIMS == 1)
+    return 2.00000 * PPP[i].AGS_Hsml / PPP[i].NumNgb;
+#endif
+#if (NUMDIMS == 2)
+    return 1.25331 * PPP[i].AGS_Hsml / PPP[i].NumNgb; // sqrt(Pi/2)
+#endif
+#if (NUMDIMS == 3)
+    return 1.61199 * PPP[i].AGS_Hsml / PPP[i].NumNgb; // (4pi/3)^(1/3)
+#endif
+}
 
 #endif

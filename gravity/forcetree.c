@@ -36,6 +36,11 @@
 static int last;
 
 
+/* some modules compute neighbor fluxes explicitly within the force-tree: in these cases, we need to
+    take extra care about opening leaves to ensure possible neighbors are not missed, so defined a flag below for it */
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#define NEIGHBORS_MUST_BE_COMPUTED_EXPLICITLY_IN_FORCETREE
+#endif
 
 /*! length of lock-up table for short-range force kernel in TreePM algorithm */
 #define NTAB 1000
@@ -1311,16 +1316,41 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     /* quick check if particle has mass: if not, we won't deal with it */
     if(pmass<=0) return 0;
     int AGS_kernel_shared_BITFLAG = ags_gravity_kernel_shared_BITFLAG(ptype); // determine allowed particle types for correction terms for adaptive gravitational softening terms
+    int j0_sec_for_ags = -1;
 #endif
 #ifdef PMGRID
     rcut2 = rcut * rcut;
     asmthfac = 0.5 / asmth * (NTAB / 3.0);
 #endif
     
+
+#ifdef NEIGHBORS_MUST_BE_COMPUTED_EXPLICITLY_IN_FORCETREE
+    double targeth_si;
+#ifdef ADAPTIVE_GRAVSOFT_FORALL
+    targeth_si = soft;
+#else
+    targeth_si = All.ForceSoftening[ptype];
+#endif
+#endif
+
     
     
     
 
+    
+
+    
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+    int targetdt_step; MyFloat targetVel[3];
+    if(mode==0)
+    {
+        int k2; for(k2=0;k2<3;k2++) {targetVel[k2] = P[target].Vel[k2];}
+        targetdt_step = P[target].dt_step;
+    } else {
+        int k2; for(k2=0;k2<3;k2++) {targetVel[k2] = GravDataGet[target].Vel[k2];}
+        targetdt_step = GravDataGet[target].dt_step;
+    }
+#endif
 
     
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
@@ -1420,6 +1450,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
                 /* set secondary softening and zeta term */
                 ptype_sec = P[no].Type;
+                j0_sec_for_ags = no;
 #ifdef ADAPTIVE_GRAVSOFT_FORGAS
                 if(ptype_sec == 0)
 #else
@@ -1453,8 +1484,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                     h = All.ForceSoftening[P[no].Type];
 #endif
                 
-                
-                
+
                 } // closes (if((r2 > 0) && (mass > 0))) check
                 
                 if(TakeLevel >= 0) {P[no].GravCost[TakeLevel] += 1.0;}
@@ -1628,6 +1658,26 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif // PMGRID //
                 
                 
+#ifdef NEIGHBORS_MUST_BE_COMPUTED_EXPLICITLY_IN_FORCETREE
+                {
+                    double dx_nc = nop->center[0] - pos_x;
+                    double dy_nc = nop->center[1] - pos_y;
+                    double dz_nc = nop->center[2] - pos_z;
+#ifdef BOX_PERIODIC
+                    NEAREST_XYZ(dx_nc,dy_nc,dz_nc,-1); /* find the closest image in the given box size  */
+#endif
+                    double dist_to_center2 = dx_nc*dx_nc +  dy_nc*dy_nc + dz_nc*dz_nc;
+                    /* check if any portion the cell lies within the interaction range */
+                    double dist_to_open = 2.0*targeth_si + nop->len*1.73205/2.0;
+                    if(dist_to_center2  < dist_to_open*dist_to_open)
+                    {
+                        /* open cell */
+                        no = nop->u.d.nextnode;
+                        continue;
+                    }
+                }
+#endif
+                
                 if(errTol2)	/* check Barnes-Hut opening criterion */
                 {
                     if(nop->len * nop->len > r2 * errTol2)
@@ -1686,7 +1736,8 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 if (nop->maxsoft > 0) h_p_inv = 1.0 / nop->maxsoft; else h_p_inv = 0;
                 zeta_sec = 0;
                 ptype_sec = -1;
-                
+                j0_sec_for_ags = -1;
+
                 if(h < nop->maxsoft) // compare primary softening to node maximum
                 {
                     if(r2 < nop->maxsoft * nop->maxsoft) // inside node maxsoft! continue down tree

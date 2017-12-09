@@ -829,8 +829,7 @@ typedef MyDouble MyBigFloat;
 #define CPU_AGSDENSCOMM    38
 #define CPU_AGSDENSMISC    39
 #define CPU_SIDMSCATTER    40
-#define CPU_SIDMCELLOPEN   41
-#define CPU_PARTS          42  /* this gives the number of parts above (must be last) */
+#define CPU_PARTS          41  /* this gives the number of parts above (must be last) */
 
 #define CPU_STRING_LEN 120
 
@@ -1594,6 +1593,7 @@ extern struct global_data_all_processes
   double AGS_DesNumNgb;
   double AGS_MaxNumNgbDeviation;
 #endif
+    
 
 #ifdef TURB_DRIVING
   double StDecay;
@@ -1763,7 +1763,6 @@ extern ALIGN(32) struct particle_data
 #endif
 #endif
     
-
 }
  *P,				/*!< holds particle data on local processor */
  *DomainPartBuf;		/*!< buffer for particle data used in domain decomposition */
@@ -2069,6 +2068,10 @@ extern struct gravdata_in
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
     MyFloat AGS_zeta;
 #endif
+#endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+    MyFloat Vel[3];
+    int dt_step;
 #endif
     MyFloat OldAcc;
     int NodeList[NODELISTLENGTH];

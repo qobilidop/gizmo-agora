@@ -43,11 +43,7 @@
 # (B) set SYSTYPE in Makefile.systype 
 #     This file has priority over your shell variable.:
 #
-#    (1) Copy the file "Template-Makefile.systype"  to  "Makefile.systype"
-#
-#        cp Template-Makefile.systype Makefile.systype 
-#
-#    (2) Uncomment your system in  "Makefile.systype".
+#     Uncomment your system in  "Makefile.systype".
 #
 # If you add an ifeq for a new system below, also add that systype to
 # Template-Makefile.systype
@@ -60,21 +56,6 @@
 #   dealing with new files and filename conventions)
 #
 #############
-
-ifdef SYSTYPE
-SYSTYPE := "$(SYSTYPE)"
--include Makefile.systype
-else
-include Makefile.systype
-endif
-
-ifeq ($(wildcard Makefile.systype), Makefile.systype)
-INCL = Makefile.systype
-else
-INCL =
-endif
-FINCL =
-
 
 CONFIG   =  Config.sh
 PERL     =  /usr/bin/perl
@@ -149,6 +130,21 @@ else
 endif
 
 endif
+
+
+ifdef SYSTYPE
+SYSTYPE := "$(SYSTYPE)"
+-include Makefile.systype
+else
+include Makefile.systype
+endif
+
+ifeq ($(wildcard Makefile.systype), Makefile.systype)
+INCL = Makefile.systype
+else
+INCL =
+endif
+FINCL =
 
 
 
@@ -979,7 +975,13 @@ ifeq (RT_CHEM_PHOTOION,$(findstring RT_CHEM_PHOTOION,$(CONFIGVARS)))
 OBJS    += galaxy_sf/hII_heating.o
 endif
 
+ifeq (CBE_INTEGRATOR,$(findstring CBE_INTEGRATOR,$(CONFIGVARS)))
+OBJS    += sidm/cbe_integrator.o
+endif
 
+ifeq (DM_FUZZY,$(findstring DM_FUZZY,$(CONFIGVARS)))
+OBJS    += sidm/dm_fuzzy.o
+endif
 
 ifeq (OUTPUT_TWOPOINT_ENABLED,$(findstring OUTPUT_TWOPOINT_ENABLED,$(CONFIGVARS)))
 OBJS    += structure/twopoint.o
@@ -1066,8 +1068,7 @@ INCL	+= subfind/subfind.h
 endif
 
 ifeq (DM_SIDM,$(findstring DM_SIDM,$(CONFIGVARS)))
-OBJS    +=  sidm/sidm_core.o sidm/sidm_allvars.o
-INCL    +=  sidm/sidm_proto.h
+OBJS    +=  sidm/sidm_core.o 
 endif
 
 ifeq (NUCLEAR_NETWORK,$(findstring NUCLEAR_NETWORK,$(CONFIGVARS)))

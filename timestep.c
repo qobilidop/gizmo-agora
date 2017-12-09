@@ -415,6 +415,9 @@ integertime get_timestep(int p,		/*!< particle index */
     }
 #endif
 
+
+
+
 #ifdef GRAIN_FLUID
     if(P[p].Type > 0)
     {
