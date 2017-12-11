@@ -492,6 +492,9 @@ void init(void)
 #endif
 #ifdef GALSF
         SphP[i].Sfr = 0;
+#if (GALSF_SFR_VIRIAL_SF_CRITERION==3)
+	SphP[i].AlphaVirial_SF_TimeSmoothed = 0;
+#endif
 #endif
 #ifdef MAGNETIC
 #if defined MHD_B_SET_IN_PARAMS
