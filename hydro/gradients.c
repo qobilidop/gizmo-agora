@@ -1606,7 +1606,9 @@ int GasGrad_evaluate(int target, int mode, int *exportflag, int *exportnodecount
 #endif
                 r2 = kernel.dp[0] * kernel.dp[0] + kernel.dp[1] * kernel.dp[1] + kernel.dp[2] * kernel.dp[2];
                 double h_j = PPP[j].Hsml;
+#ifndef HYDRO_SPH
                 if(r2 <= 0) continue;
+#endif
                 if((r2 >= h2_i) && (r2 >= h_j * h_j)) continue;
                 
                 kernel.r = sqrt(r2);
@@ -1852,8 +1854,7 @@ int GasGrad_evaluate(int target, int mode, int *exportflag, int *exportnodecount
 
 
                     /* ------------------------------------------------------------------------------------------------ */
-                    /*  Here we insert additional operations we want to fit into the gradients loop. at the moment, all of these 
-                            are SPH-specific */
+                    /*  Here we insert additional operations we want to fit into the gradients loop. at the moment, all of these are SPH-specific */
 #ifdef HYDRO_SPH
 #ifdef SPHAV_CD10_VISCOSITY_SWITCH
                     out.alpha_limiter += NV_MYSIGN(SphP[j].NV_DivVel) * P[j].Mass * kernel.wk_i;

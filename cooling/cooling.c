@@ -489,7 +489,9 @@ double find_abundances_and_rates(double logT, double rho, int target, double shi
 #endif
     }
     n_elec = *ne_guess; neold = n_elec; niter = 0;
-    double necgs = n_elec * nHcgs; /* more initialized quantities */
+    double dt = 0, fac_noneq_cgs = 0, necgs = n_elec * nHcgs; /* more initialized quantities */
+    if(target >= 0) {dt = (P[target].TimeBin ? (1 << P[target].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a;} // dtime [code units]
+    fac_noneq_cgs = (dt * All.UnitTime_in_s / All.HubbleParam) * necgs; // factor needed below to asses whether timestep is larger/smaller than recombination time
     
     
     /* evaluate number densities iteratively (cf KWH eqns 33-38) in units of nH */
