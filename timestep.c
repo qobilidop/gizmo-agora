@@ -665,12 +665,12 @@ integertime get_timestep(int p,		/*!< particle index */
         {
 #if defined(BH_GRAVCAPTURE_GAS) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE)
             /* really want prefactor to be ratio of median gas mass to bh mass */
-            dt_accr = 0.001 * BPP(p).BH_Mass / BPP(p).BH_Mdot;
+            dt_accr = 0.001 * DMAX(BPP(p).BH_Mass, All.MaxMassForParticleSplit) / BPP(p).BH_Mdot;
 #ifdef SINGLE_STAR_FORMATION
-            dt_accr = 0.1 * BPP(p).BH_Mass / BPP(p).BH_Mdot;
+            dt_accr = 0.1 * DMAX(BPP(p).BH_Mass, 0.1*All.MinMassForParticleMerger) / BPP(p).BH_Mdot;
 #endif
 #else
-            dt_accr = 0.05 * BPP(p).BH_Mass / BPP(p).BH_Mdot;
+            dt_accr = 0.05 * DMAX(BPP(p).BH_Mass , All.MaxMassForParticleSplit) / BPP(p).BH_Mdot;
 #endif // defined(BH_GRAVCAPTURE_GAS) || defined(FLAG_NOT_IN_PUBLIC_CODE)
         } // if(BPP(p).BH_Mdot > 0 && BPP(p).BH_Mass > 0)
 #ifdef BH_SEED_GROWTH_TESTS
