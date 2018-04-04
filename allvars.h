@@ -180,6 +180,13 @@
 #include "eos/eos.h"
 
 
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#ifndef ADAPTIVE_GRAVSOFT_FORALL
+#define ADAPTIVE_GRAVSOFT_FORALL 100000
+#endif
+#endif
+
+
 
 
 
@@ -275,6 +282,10 @@
 /* options for M1 module */
 
 
+/* options for direct/exact Jiang et al. method for direct evolution on an intensity grid */
+
+
+
 /* decide which diffusion method to use (for any diffusion-based method) */
 #if defined(RT_DIFFUSION) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
 #define RT_DIFFUSION_CG
@@ -310,6 +321,9 @@
 
 #if defined(GALSF) || defined(BLACK_HOLES) || defined(FLAG_NOT_IN_PUBLIC_CODE)
 #define DO_DENSITY_AROUND_STAR_PARTICLES
+#if !defined(ALLOW_IMBALANCED_GASPARTICLELOAD)
+#define ALLOW_IMBALANCED_GASPARTICLELOAD
+#endif
 #endif
 
 
@@ -523,7 +537,9 @@ typedef  int integertime;
 
 #define RT_FREQ_BIN_LYMAN_WERNER (RT_FREQ_BIN_PHOTOELECTRIC+0)
 
-#define RT_FREQ_BIN_OPTICAL_NIR (RT_FREQ_BIN_LYMAN_WERNER+0)
+#define RT_FREQ_BIN_NUV (RT_FREQ_BIN_LYMAN_WERNER+0)
+
+#define RT_FREQ_BIN_OPTICAL_NIR (RT_FREQ_BIN_NUV+0)
 
 
 /* be sure to add all new wavebands to these lists, or else we will run into problems */
@@ -1422,6 +1438,10 @@ extern struct global_data_all_processes
 
 
 
+    
+#ifdef RT_EVOLVE_INTENSITIES
+    double RT_Intensity_Direction[N_RT_INTENSITY_BINS][3];
+#endif
 
     
     
@@ -1763,6 +1783,9 @@ extern ALIGN(32) struct particle_data
 #endif
 #endif
     
+#if defined(AGS_FACE_CALCULATION_IS_ACTIVE)
+    MyFloat NV_T[3][3];                                           /*!< holds the tensor used for gradient estimation */
+#endif
 }
  *P,				/*!< holds particle data on local processor */
  *DomainPartBuf;		/*!< buffer for particle data used in domain decomposition */
@@ -1822,7 +1845,10 @@ extern struct sph_particle_data
 #endif
 #endif /* MAGNETIC */
 
-    
+#if defined(CRK_FACES)
+    MyFloat Tensor_CRK_Face_Corrections[16]; /*!< tensor set for face-area correction terms for the CRK formulation of SPH or MFM/V areas */
+#endif
+
     
 #ifdef SUPER_TIMESTEP_DIFFUSION
     MyDouble Super_Timestep_Dt_Explicit; /*!< records the explicit step being used to scale the sub-steps for the super-stepping */
@@ -2072,10 +2098,6 @@ extern struct gravdata_in
     MyFloat AGS_zeta;
 #endif
 #endif
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
-    MyFloat Vel[3];
-    int dt_step;
-#endif
     MyFloat OldAcc;
     int NodeList[NODELISTLENGTH];
 }
@@ -2283,6 +2305,7 @@ enum iofields
   IO_PRESSURE,
   IO_EOSCS,
   IO_EOS_STRESS_TENSOR,
+  IO_CBE_MOMENTS,
   IO_EOSCOMP,
   IO_PARTVEL,
   IO_RADGAMMA,
@@ -2308,6 +2331,8 @@ enum iofields
   IO_CHEM,
   IO_DELAYTIME,
   IO_AGS_SOFT,
+  IO_AGS_RHO,
+  IO_AGS_QPT,
   IO_AGS_ZETA,
   IO_AGS_OMEGA,
   IO_AGS_CORR,

@@ -216,6 +216,9 @@ struct hydrodata_in
     } Gradients;
     MyFloat NV_T[3][3];
     
+#if defined(CRK_FACES)
+    MyFloat Tensor_CRK_Face_Corrections[16];
+#endif
 #ifdef HYDRO_PRESSURE_SPH
     MyFloat EgyWtRho;
 #endif
@@ -363,11 +366,13 @@ static inline void particle2in_hydra(struct hydrodata_in *in, int i)
 #ifdef HYDRO_PRESSURE_SPH
     in->EgyWtRho = SphP[i].EgyWtDensity;
 #endif
-    
+#if defined(CRK_FACES)
+    for(k=0;k<16;k++) {in->Tensor_CRK_Face_Corrections[k] = SphP[i].Tensor_CRK_Face_Corrections[k];}
+#endif
+
     int j;
-    for(j=0;j<3;j++)
-        for(k=0;k<3;k++)
-            in->NV_T[j][k] = SphP[i].NV_T[j][k];
+    for(j=0;j<3;j++) {for(k=0;k<3;k++) {in->NV_T[j][k] = SphP[i].NV_T[j][k];}}
+
     
     /* matrix of the conserved variable gradients: rho, u, vx, vy, vz */
     for(k=0;k<3;k++)
@@ -455,6 +460,7 @@ static inline void out2particle_hydra(struct hydrodata_out *out, int i, int mode
     }
     SphP[i].DtInternalEnergy += out->DtInternalEnergy;
     //SphP[i].dInternalEnergy += out->dInternalEnergy; //manifest-indiv-timestep-debug//
+
 #ifdef HYDRO_MESHLESS_FINITE_VOLUME
     SphP[i].DtMass += out->DtMass;
     SphP[i].dMass += out->dMass;
@@ -648,14 +654,19 @@ void hydro_final_operations_and_cleanup(void)
             for(k2=0;k2<N_RT_FREQ_BINS;k2++)
             {
                 // want to average over volume (through-slab) and over time (over absorption): both give one 'slab_fac' below //
-                double slabfac = slab_averaging_function(SphP[i].Kappa_RT[k2]*Sigma_particle) * slab_averaging_function(SphP[i].Kappa_RT[k2]*abs_per_kappa_dt);
-                for(k=0;k<3;k++)
+                double slabfac = 1;// slab_averaging_function(SphP[i].Kappa_RT[k2]*Sigma_particle) * slab_averaging_function(SphP[i].Kappa_RT[k2]*abs_per_kappa_dt); // (actually dt average not appropriate if there is a source, dx average implicit -already- in averaging operation of Riemann problem //
+                // use optically-thin flux: for optically thin cases this is better, but actually for thick cases, if optical depth is highly un-resolved, this is also better (see Appendices and discussion of Rosdahl et al. 2015)
+                double Fmag=0; for(k=0;k<3;k++) {Fmag+=SphP[i].Flux_Pred[k2][k]*SphP[i].Flux_Pred[k2][k];}
+                if(Fmag > 0)
                 {
-                    radacc[k] += slabfac * SphP[i].Kappa_RT[k2] * (SphP[i].Flux_Pred[k2][k] * SphP[i].Density/P[i].Mass) / (RT_SPEEDOFLIGHT_REDUCTION * C / All.UnitVelocity_in_cm_per_s);
+                    Fmag = sqrt(Fmag);
+                    double Fthin = SphP[i].E_gamma[k2] * (RT_SPEEDOFLIGHT_REDUCTION * C / All.UnitVelocity_in_cm_per_s);
+                    double F_eff = DMAX(Fthin , Fmag);
+                    for(k=0;k<3;k++) {radacc[k] += (F_eff/Fmag) * slabfac * SphP[i].Kappa_RT[k2] * (SphP[i].Flux_Pred[k2][k] * SphP[i].Density/P[i].Mass) / (RT_SPEEDOFLIGHT_REDUCTION * C / All.UnitVelocity_in_cm_per_s);}
+                }
 //#elif defined(RT_EVOLVE_EDDINGTON_TENSOR)
                     /* // -- moved for OTVET+FLD to drift-kick operation to deal with limiters more accurately -- // */
                     //radacc[k] += -slabfac * SphP[i].Lambda_FluxLim[k2] * SphP[i].Gradients.E_gamma_ET[k2][k] / SphP[i].Density; // no speed of light reduction multiplier here //
-                }
             }
             for(k=0;k<3;k++)
             {

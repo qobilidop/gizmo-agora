@@ -73,15 +73,9 @@ void compute_hydro_densities_and_forces(void)
 {
   if(All.TotN_gas > 0)
     {
-        if(ThisTask == 0)
-        {
-            printf("Start hydrodynamics computation...\n");
-        }
+        if(ThisTask == 0) {printf("Start hydrodynamics computation...\n");}
 #ifndef IO_REDUCED_MODE
-        if(ThisTask == 0)
-        {
-            printf("Start density & tree-update computation...\n");
-        }
+        if(ThisTask == 0) {printf("Start density & tree-update computation...\n");}
 #endif
         density();		/* computes density, and pressure */
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
@@ -97,33 +91,16 @@ void compute_hydro_densities_and_forces(void)
          */
         
 #ifndef IO_REDUCED_MODE
-        if(ThisTask == 0)
-        {
-            printf("density & tree-update computation done...\n");
-        }
+        if(ThisTask == 0) {printf("density & tree-update computation done...\n");}
 #endif
         hydro_gradient_calc(); /* calculates the gradients of hydrodynamical quantities  */
 #ifndef IO_REDUCED_MODE
-        if(ThisTask == 0)
-        {
-            printf("gradient computation done.\n");
-        }
+        if(ThisTask == 0) {printf("gradient computation done.\n");}
 #endif
         hydro_force();		/* adds hydrodynamical accelerations and computes du/dt  */
+        compute_additional_forces_for_all_particles(); /* other accelerations that need to be computed are done here */
 #ifndef IO_REDUCED_MODE
-        if(ThisTask == 0)
-        {
-            printf("hydro force computation done.\n");
-        }
-#endif
-#ifdef GRAIN_FLUID
-        apply_grain_dragforce(); /* if we are solving a coupled set of grains via aerodynamic drag, this is where their acceleration should be calculated */
-#ifndef IO_REDUCED_MODE
-        if(ThisTask == 0)
-        {
-            printf("grain aerodynamic force evaluation done.\n");
-        }
-#endif
+        if(ThisTask == 0) {printf("hydro force computation done.\n");}
 #endif
 
     } else {
@@ -131,8 +108,24 @@ void compute_hydro_densities_and_forces(void)
         ags_density(); // if there are no gas particles but ags-all is active, still need to enter this loop //
         force_update_hmax();    /* update kernel lengths in tree */
 #endif
+        compute_additional_forces_for_all_particles();
     }
 }
+
+
+
+void compute_additional_forces_for_all_particles(void)
+{
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+    AGSForce_calc();
+#endif
+#ifdef GRAIN_FLUID
+    apply_grain_dragforce(); /* if we are solving a coupled set of grains via aerodynamic drag, this is where their acceleration should be calculated */
+    if(ThisTask == 0) {printf("grain aerodynamic force evaluation done.\n");}
+#endif
+}
+
+
 
 
 #ifdef GALSF

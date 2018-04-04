@@ -409,7 +409,7 @@ integertime get_timestep(int p,		/*!< particle index */
         {
             double dt_divv = 0.25 / (MIN_REAL_NUMBER + All.cf_a2inv*fabs(P[p].Particle_DivVel));
             if(dt_divv < dt) {dt = dt_divv;}
-            double dt_cour = All.CourantFac * (KERNEL_CORE_SIZE*PPP[p].AGS_Hsml*All.cf_atime) / (MIN_REAL_NUMBER + 0.5*P[p].AGS_vsig*All.cf_afac3);
+            double dt_cour = All.CourantFac * (Get_Particle_Size_AGS(p)*All.cf_atime) / (MIN_REAL_NUMBER + 0.5*P[p].AGS_vsig*All.cf_afac3);
             if(dt_cour < dt) {dt = dt_cour;}
         }
     }

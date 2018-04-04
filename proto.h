@@ -83,6 +83,7 @@ double powerspec_turb_obtain_fields(void);
 void powerspec_turb_save(char *fname, double *disp);
 void powerspec_turb_collect(void);
 void powerspec_turb(int filenr);
+void compute_additional_forces_for_all_particles(void);
 
 
 void set_cosmo_factors_for_current_time(void);
@@ -120,6 +121,11 @@ void calc_shearing_box_pos_offset(void);
 int ngb_treefind_variable_threads_targeted(MyDouble searchcenter[3], MyFloat hsml, int target, int *startnode,
                                            int mode, int *exportflag, int *exportnodecount, int *exportindex,
                                            int *ngblist, int TARGET_BITMASK);
+
+int ngb_treefind_pairs_threads_targeted(MyDouble searchcenter[3], MyFloat hsml, int target, int *startnode,
+                                           int mode, int *exportflag, int *exportnodecount, int *exportindex,
+                                           int *ngblist, int TARGET_BITMASK);
+
 
 
 void do_distortion_tensor_kick(int i, double dt_gravkick);
@@ -276,6 +282,7 @@ double INLINE_FUNC Get_Particle_PhiField_DampingTimeInv(int i_particle_id);
 #endif
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
 double INLINE_FUNC Get_Particle_Size_AGS(int i);
+double get_particle_volume_ags(int j);
 #endif
 
 double INLINE_FUNC hubble_function(double a);
@@ -687,6 +694,11 @@ void *ags_density_evaluate_secondary(void *p);
 int ags_density_isactive(int i);
 double ags_return_maxsoft(int i);
 double ags_return_minsoft(int i);
+void AGSForce_calc(void);
+int AGSForce_evaluate(int target, int mode, int *exportflag, int *exportnodecount, int *exportindex, int *ngblist);
+void *AGSForce_evaluate_primary(void *p);
+void *AGSForce_evaluate_secondary(void *p);
+int AGSForce_isactive(int i);
 #endif
 
 #ifdef HYDRO_MESHLESS_FINITE_VOLUME
@@ -712,6 +724,9 @@ void apply_excision();
 
 
 
+#if defined(AGS_FACE_CALCULATION_IS_ACTIVE)
+double do_cbe_nvt_inversion_for_faces(int i);
+#endif
 
 
 

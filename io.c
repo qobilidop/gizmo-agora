@@ -1000,6 +1000,10 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
 #endif
             break;
 
+        case IO_CBE_MOMENTS:
+            break;
+
+            
         case IO_EOS_STRESS_TENSOR:
 #if defined(EOS_ELASTIC)
             for(n = 0; n < pc; pindex++)
@@ -1017,6 +1021,7 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
 #endif
             break;
 
+            
             case IO_EOSCOMP:
 #ifdef EOS_TILLOTSON
             for(n = 0; n < pc; pindex++)
@@ -1087,6 +1092,10 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
                     n++;
                 }
 #endif
+            break;
+        case IO_AGS_RHO:        /* Adaptive Gravitational Softening: density */
+            break;
+        case IO_AGS_QPT:        /* quantum potential (Q) */
             break;
         case IO_AGS_ZETA:		/* Adaptive Gravitational Softening: zeta */
 #if defined(ADAPTIVE_GRAVSOFT_FORALL) && defined(AGS_OUTPUTZETA)
@@ -1354,6 +1363,8 @@ int get_bytes_per_blockelement(enum iofields blocknr, int mode)
         case IO_PRESSURE:
         case IO_INIT_DENSITY:
         case IO_AGS_SOFT:
+        case IO_AGS_RHO:
+        case IO_AGS_QPT:
         case IO_AGS_ZETA:
         case IO_AGS_OMEGA:
         case IO_AGS_CORR:
@@ -1419,6 +1430,9 @@ int get_bytes_per_blockelement(enum iofields blocknr, int mode)
             else
                 bytes_per_blockelement = 9 * sizeof(MyOutputFloat);
             break;
+
+            
+        case IO_CBE_MOMENTS:
 
             
         case IO_TIDALTENSORPS:
@@ -1605,6 +1619,8 @@ int get_values_per_blockelement(enum iofields blocknr)
         case IO_DMHSML_V:
         case IO_DMDENSITY_V:
         case IO_AGS_SOFT:
+        case IO_AGS_RHO:
+        case IO_AGS_QPT:
         case IO_AGS_ZETA:
         case IO_AGS_OMEGA:
         case IO_AGS_CORR:
@@ -1628,6 +1644,10 @@ int get_values_per_blockelement(enum iofields blocknr)
 
         case IO_EOS_STRESS_TENSOR:
             values = 9;
+            break;
+
+        case IO_CBE_MOMENTS:
+            values = 0;
             break;
 
         case IO_EDDINGTON_TENSOR:
@@ -1729,12 +1749,15 @@ long get_particles_in_block(enum iofields blocknr, int *typelist)
         case IO_POT:
         case IO_SECONDORDERMASS:
         case IO_AGS_SOFT:
+        case IO_AGS_RHO:
+        case IO_AGS_QPT:
         case IO_AGS_ZETA:
         case IO_AGS_OMEGA:
         case IO_AGS_CORR:
         case IO_AGS_NGBS:
         case IO_MG_PHI:
         case IO_BH_DIST:
+        case IO_CBE_MOMENTS:
             return nall;
             break;
             
@@ -2375,6 +2398,9 @@ int blockpresent(enum iofields blocknr)
 #else
             return 0;
 #endif
+            
+        case IO_CBE_MOMENTS:
+            return 0;
 
         case IO_PARTVEL:
 #ifdef HYDRO_MESHLESS_FINITE_VOLUME
@@ -2409,7 +2435,15 @@ int blockpresent(enum iofields blocknr)
             return 0;
 #endif
             break;
-            
+
+        case IO_AGS_RHO:
+            return 0;
+            break;
+
+        case IO_AGS_QPT:
+            return 0;
+            break;
+
         case IO_AGS_ZETA:
 #if defined (ADAPTIVE_GRAVSOFT_FORALL) && defined(AGS_OUTPUTZETA)
             return 1;
@@ -2727,6 +2761,9 @@ void get_Tab_IO_Label(enum iofields blocknr, char *label)
         case IO_EOS_STRESS_TENSOR:
             strncpy(label, "ESTT", 4);
             break;
+        case IO_CBE_MOMENTS:
+            strncpy(label, "VMOM", 4);
+            break;
         case IO_EOSCOMP:
             strncpy(label, "COMP", 4);
             break;
@@ -2768,6 +2805,12 @@ void get_Tab_IO_Label(enum iofields blocknr, char *label)
             break;
         case IO_AGS_SOFT:
             strncpy(label, "AGSH", 4);
+            break;
+        case IO_AGS_RHO:
+            strncpy(label, "ARHO", 4);
+            break;
+        case IO_AGS_QPT:
+            strncpy(label, "AQPT", 4);
             break;
         case IO_AGS_ZETA:
             strncpy(label, "AGSZ", 4);
@@ -3084,6 +3127,9 @@ void get_dataset_name(enum iofields blocknr, char *buf)
         case IO_EOS_STRESS_TENSOR:
             strcpy(buf, "StressTensor");
             break;
+        case IO_CBE_MOMENTS:
+            strcpy(buf, "VlasovMoments");
+            break;
         case IO_EOSCOMP:
             strcpy(buf, "CompositionType");
             break;
@@ -3119,6 +3165,12 @@ void get_dataset_name(enum iofields blocknr, char *buf)
             break;
         case IO_AGS_SOFT:
             strcpy(buf, "AGS-Softening");
+            break;
+        case IO_AGS_RHO:
+            strcpy(buf, "AGS-Density");
+            break;
+        case IO_AGS_QPT:
+            strcpy(buf, "AGS-QuantumPotentialQ");
             break;
         case IO_AGS_ZETA:
             strcpy(buf, "AGS-Zeta");

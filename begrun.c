@@ -231,7 +231,6 @@ void begrun(void)
 #endif
         
 
-
 #ifdef SPHAV_CD10_VISCOSITY_SWITCH
       All.ArtBulkViscConst = all.ArtBulkViscConst;
       All.ViscosityAMin = all.ViscosityAMin;
@@ -1650,9 +1649,9 @@ void read_parameter_file(char *fname)
     All.MaxNumNgbDeviation /= 5.0;
 #endif
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
-    All.AGS_MaxNumNgbDeviation = All.AGS_DesNumNgb / 64.;
+    All.AGS_MaxNumNgbDeviation = All.AGS_DesNumNgb / 640.;
 #ifdef GALSF
-    All.AGS_MaxNumNgbDeviation = All.AGS_DesNumNgb / 32.;
+    All.AGS_MaxNumNgbDeviation = All.AGS_DesNumNgb / 64.;
 #endif
     if(All.AGS_MaxNumNgbDeviation < 0.05) All.AGS_MaxNumNgbDeviation = 0.05;
 #endif

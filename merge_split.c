@@ -260,7 +260,7 @@ void merge_and_split_particles(void)
 void split_particle_i(int i, int n_particles_split, int i_nearest, double r2_nearest)
 {
     double mass_of_new_particle;
-    if(NumPart + n_particles_split >= All.MaxPart)
+    if(NumPart + n_particles_split >= All.MaxPartSph)
     {
         printf ("On Task=%d with NumPart=%d we try to split a particle. Sorry, no space left...(All.MaxPart=%d)\n", ThisTask, NumPart, All.MaxPart);
         fflush(stdout);
@@ -338,22 +338,15 @@ void split_particle_i(int i, int n_particles_split, int i_nearest, double r2_nea
     /* we evolve the -conserved- VB and Vphi, so this must be partitioned */
     for(k=0;k<3;k++)
     {
-        SphP[j].B[k] = mass_of_new_particle * SphP[i].B[k];
-        SphP[i].B[k] -= SphP[j].B[k];
-        SphP[j].BPred[k] = mass_of_new_particle * SphP[i].BPred[k];
-        SphP[i].BPred[k] -= SphP[j].BPred[k];
-        SphP[j].DtB[k] = mass_of_new_particle * SphP[i].DtB[k];
-        SphP[i].DtB[k] -= SphP[j].DtB[k];
+        SphP[j].B[k] = mass_of_new_particle * SphP[i].B[k]; SphP[i].B[k] -= SphP[j].B[k];
+        SphP[j].BPred[k] = mass_of_new_particle * SphP[i].BPred[k]; SphP[i].BPred[k] -= SphP[j].BPred[k];
+        SphP[j].DtB[k] = mass_of_new_particle * SphP[i].DtB[k]; SphP[i].DtB[k] -= SphP[j].DtB[k];
     }
-    SphP[j].divB = mass_of_new_particle * SphP[i].divB;
-    SphP[i].divB -= SphP[j].divB;
+    SphP[j].divB = mass_of_new_particle * SphP[i].divB; SphP[i].divB -= SphP[j].divB;
 #ifdef DIVBCLEANING_DEDNER
-    SphP[j].Phi = mass_of_new_particle * SphP[i].Phi;
-    SphP[i].Phi -= SphP[j].Phi;
-    SphP[j].DtPhi = mass_of_new_particle * SphP[i].DtPhi;
-    SphP[i].DtPhi -= SphP[j].DtPhi;
-    SphP[j].PhiPred = mass_of_new_particle * SphP[i].PhiPred;
-    SphP[i].PhiPred -= SphP[j].PhiPred;
+    SphP[j].Phi = mass_of_new_particle * SphP[i].Phi; SphP[i].Phi -= SphP[j].Phi;
+    SphP[j].DtPhi = mass_of_new_particle * SphP[i].DtPhi; SphP[i].DtPhi -= SphP[j].DtPhi;
+    SphP[j].PhiPred = mass_of_new_particle * SphP[i].PhiPred; SphP[i].PhiPred -= SphP[j].PhiPred;
 #endif
     /* ideally, particle-splits should be accompanied by a re-partition of the density via the density() call
         for the particles affected, after the tree-reconstruction, with quantities like B used to re-calculate after */

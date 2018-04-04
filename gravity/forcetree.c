@@ -38,7 +38,7 @@ static int last;
 
 /* some modules compute neighbor fluxes explicitly within the force-tree: in these cases, we need to
     take extra care about opening leaves to ensure possible neighbors are not missed, so defined a flag below for it */
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(ADAPTIVE_GRAVSOFT_FORALL)
 #define NEIGHBORS_MUST_BE_COMPUTED_EXPLICITLY_IN_FORCETREE
 #endif
 
@@ -1325,32 +1325,14 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     
 
 #ifdef NEIGHBORS_MUST_BE_COMPUTED_EXPLICITLY_IN_FORCETREE
-    double targeth_si;
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
-    targeth_si = soft;
+    double targeth_si = soft;
 #else
-    targeth_si = All.ForceSoftening[ptype];
+    double targeth_si = All.ForceSoftening[ptype];
 #endif
 #endif
 
     
-    
-    
-
-    
-
-    
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
-    int targetdt_step; MyFloat targetVel[3];
-    if(mode==0)
-    {
-        int k2; for(k2=0;k2<3;k2++) {targetVel[k2] = P[target].Vel[k2];}
-        targetdt_step = P[target].dt_step;
-    } else {
-        int k2; for(k2=0;k2<3;k2++) {targetVel[k2] = GravDataGet[target].Vel[k2];}
-        targetdt_step = GravDataGet[target].dt_step;
-    }
-#endif
 
     
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
@@ -1483,7 +1465,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 if(h < All.ForceSoftening[P[no].Type])
                     h = All.ForceSoftening[P[no].Type];
 #endif
-                
 
                 } // closes (if((r2 > 0) && (mass > 0))) check
                 
@@ -1983,8 +1964,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
             }
         } // closes (mode == 1) check
     } // closes outer (while(no>=0)) check
-    
-    
     
     
     /* store result at the proper place */
