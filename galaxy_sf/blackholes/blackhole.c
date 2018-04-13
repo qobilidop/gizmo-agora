@@ -293,11 +293,7 @@ void set_blackhole_mdot(int i, int n, double dt)
     double  soundspeed, bhvel, rho;
 #endif
 #ifdef BH_ENFORCE_EDDINGTON_LIMIT
-    double meddington;
-#endif
-    
-#ifdef BH_ENFORCE_EDDINGTON_LIMIT
-    meddington = bh_eddington_mdot(BPP(n).BH_Mass);
+    double meddington = bh_eddington_mdot(BPP(n).BH_Mass);
 #endif
     
     
@@ -484,6 +480,10 @@ void set_blackhole_mdot(int i, int n, double dt)
 
 #else // BH_ALPHADISK_ACCRETION
 
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+    /* if there is no alpha-disk, the BHAR defined above is really an mdot into the accretion disk. the rate -to the hole- should be corrected for winds */
+    mdot *= All.BAL_f_accretion;
+#endif
 #endif // BH_ALPHADISK_ACCRETION
 
 
@@ -512,7 +512,7 @@ void set_blackhole_new_mass(int i, int n, double dt)
     if(BPP(n).BH_Mdot <= 0) {BPP(n).BH_Mdot=0;}
 
 /* DAA:
- for BH_WIND_CONTINUOUS
+ for BH_WIND_CONTINUOUS or BH_WIND_SPAWN
     - we accrete the winds first, either explicitly to the BH or implicitly into the disk -
     - then we remove the wind mass in the final loop
  for BH_WIND_KICK

@@ -29,10 +29,10 @@
     when particles fall below some minimum mass threshold */
 int does_particle_need_to_be_merged(int i)
 {
+    if(P[i].Mass <= 0) return 0;
 #ifdef PREVENT_PARTICLE_MERGE_SPLIT
     return 0;
 #else
-    if(P[i].Mass <= 0) return 0;
     if((P[i].Type>0) && (P[i].Mass > 0.5*All.MinMassForParticleMerger*ref_mass_factor(i))) return 0;
     if(P[i].Mass <= (All.MinMassForParticleMerger* ref_mass_factor(i))) return 1;
     return 0;
