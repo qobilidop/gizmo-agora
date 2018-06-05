@@ -406,8 +406,9 @@ double find_abundances_and_rates(double logT, double rho, int target, double shi
     double bH0, bHep, bff, aHp, aHep, aHepp, ad, geH0, geHe0, geHep;
     double n_elec, nH0, nHe0, nHp, nHep, nHepp; /* ionization states */
     logT_input = logT; rho_input = rho; ne_input = *ne_guess; /* save inputs (in case of failed convergence below) */
-    if(isnan(logT)) logT=Tmin;    /* nan trap (just in case) */
-    
+    if(!isfinite(logT)) logT=Tmin;    /* nan trap (just in case) */
+    if(!isfinite(rho)) logT=Tmin;
+
     if(logT <= Tmin)		/* everything neutral */
     {
         nH0 = 1.0; nHe0 = yhelium(target); nHp = 0; nHep = 0; nHepp = 0; n_elec = 0;
@@ -503,10 +504,10 @@ double find_abundances_and_rates(double logT, double rho, int target, double shi
         }
         
         
-        nH0 = aHp / (aHp + geH0 + gJH0ne);	/* eqn (33) */
+        nH0 = aHp / (MIN_REAL_NUMBER + aHp + geH0 + gJH0ne);	/* eqn (33) */
         nHp = 1.0 - nH0;		/* eqn (34) */
         
-        if((gJHe0ne + geHe0) <= 1.0e-60)	/* no ionization at all */
+        if( ((gJHe0ne + geHe0) <= MIN_REAL_NUMBER) || (aHepp <= MIN_REAL_NUMBER) ) 	/* no ionization at all */
         {
             nHep = 0.0;
             nHepp = 0.0;
@@ -613,6 +614,8 @@ double CoolingRate(double logT, double rho, double n_elec_guess, int target)
     double nHcgs = HYDROGEN_MASSFRAC * rho / PROTONMASS;	/* hydrogen number dens in cgs units */
     LambdaMol=0; LambdaMetal=0; LambdaCmptn=0; NH_SS_z=NH_SS;
     if(logT <= Tmin) {logT = Tmin + 0.5 * deltaT;}	/* floor at Tmin */
+    if(!isfinite(rho)) {return 0;} 
+
 #ifdef COOL_METAL_LINES_BY_SPECIES
     double *Z;
     if(target>=0)
@@ -703,7 +706,12 @@ double CoolingRate(double logT, double rho, double n_elec_guess, int target)
 #ifdef COOL_LOW_TEMPERATURES
         /* if COSMIC_RAYS is not enabled, but low-temperature cooling is on, we account for the CRs as a heating source using
          a more approximate expression (assuming the mean background of the Milky Way clouds) */
-        if(logT <= 5.2) {Heat += 1.0e-16 * (0.98 + 1.65*n_elec*HYDROGEN_MASSFRAC) / (1.e-2 + nHcgs) * 9.0e-12;} // multiplied by background of ~5eV/cm^3 (Goldsmith & Langer (1978),  van Dishoeck & Black (1986) //
+        if(logT <= 5.2)
+        {
+            // multiplied by background of ~5eV/cm^3 (Goldsmith & Langer (1978),  van Dishoeck & Black (1986) //
+            double prefac_CR=1; if(All.ComovingIntegrationOn) {if(rho < 1000.*All.OmegaBaryon*(All.HubbleParam*HUBBLE)*(All.HubbleParam*HUBBLE)*(3./(8.*M_PI*GRAVITY))*All.cf_a3inv) {prefac_CR=0;}} // in cosmological runs, turn off CR heating for any gas with density unless it's >1000 times the cosmic mean density
+            Heat += prefac_CR * 1.0e-16 * (0.98 + 1.65*n_elec*HYDROGEN_MASSFRAC) / (1.e-2 + nHcgs) * 9.0e-12;
+        }
 #endif
       
         

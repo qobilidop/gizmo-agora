@@ -55,7 +55,7 @@
 
 
 #define DO_PREPROCESSOR_EXPAND_(VAL)  VAL ## 1
-#define EXPAND_PREPROCESSOR_(VAL)     DO_PREPROCESSOR_EXPAND_(VAL)
+#define EXPAND_PREPROCESSOR_(VAL)     DO_PREPROCESSOR_EXPAND_(VAL) /* checks for a NON-ZERO value of this parameter */
 
 
 #if !defined(SLOPE_LIMITER_TOLERANCE)
@@ -327,11 +327,9 @@
 #endif
 
 
-#if !defined(HYDRO_SPH) && !defined(MAGNETIC) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
 //#define ENERGY_ENTROPY_SWITCH_IS_ACTIVE
 /* this is a ryu+jones type energy/entropy switch. it can help with some problems, but can also generate significant 
  errors in other types of problems. in general, even for pure hydro, this isn't recommended; use it for special problems if you know what you are doing. */
-#endif
 
 
 
@@ -2284,6 +2282,7 @@ enum iofields
   IO_DBDT,
   IO_IMF,
   IO_COSMICRAY_ENERGY,
+  IO_COSMICRAY_ALFVEN,
   IO_DIVB,
   IO_ABVC,
   IO_AMDC,
