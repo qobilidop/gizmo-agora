@@ -244,7 +244,7 @@ double DoCooling(double u_old, double rho, double dt, double ne_guess, int targe
 double GetCoolingTime(double u_old, double rho, double ne_guess, int target)
 {
 #if defined(COOL_GRACKLE) && !defined(GALSF_EFFECTIVE_EQS)
-    double LambdaNet = CallGrackle(u_old, rho, 0.0, ne_guess, target, 1);
+    double LambdaNet = CallGrackle(u_old, rho, 0.0, ne_guess, 0.0, target, 1);
     if(LambdaNet >= 0) LambdaNet = 0.0;
     return LambdaNet * All.HubbleParam / All.UnitTime_in_s;
 #else
