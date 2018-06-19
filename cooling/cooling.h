@@ -40,6 +40,6 @@ double yhelium(int target);
 
 #ifdef COOL_GRACKLE
 void InitGrackle(void);
-double CallGrackle(double u_old, double rho, double dt, double ne_guess, int target, int mode);
+double CallGrackle(double u_old, double rho, double dt, double ne_guess, double udot, int target, int mode);
 #endif
 

@@ -19,7 +19,7 @@
 //     3 == calculate and return pressure
 //     4 == calculate and return gamma (only valid when COOL_GRACKLE_CHEMISTRY>0)
 //
-double CallGrackle(double u_old, double rho, double dt, double ne_guess, int target, int mode)
+double CallGrackle(double u_old, double rho, double dt, double ne_guess, double udot, int target, int mode)
 {
     gr_float returnval = 0.0;
     
@@ -99,7 +99,7 @@ double CallGrackle(double u_old, double rho, double dt, double ne_guess, int tar
                                &HeI_density, &HeII_density, &HeIII_density,
                                &H2I_density, &H2II_density,
                                &DI_density, &DII_density, &HDI_density,
-                               &ne_density, &metal_density) == 0) {
+                               &ne_density, &metal_density, &udot) == 0) {
                 fprintf(stderr, "Error in solve_chemistry.\n");
                 endrun(ENDRUNVAL);
             }
