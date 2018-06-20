@@ -282,7 +282,10 @@ void InitGrackle(void)
         exit(ENDRUNVAL);
     }
     // Third, set parameter values for chemistry & cooling
-    
+
+    // Set solar abundance to AGORA standard value
+    grackle_data.SolarMetalFractionByMass = 0.02041;
+
     /* optional flags:: */
     
     // Flag to control which three-body H2 formation rate is used.
