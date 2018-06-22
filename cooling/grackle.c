@@ -203,7 +203,7 @@ double CallGrackle(double u_old, double rho, double dt, double ne_guess, double 
                                      grid_start, grid_end,
                                      &density, &energy,
                                      &velx, &vely, &velz,
-                                     &metal_density) == 0){
+                                     &metal_density, &udot) == 0){
                 fprintf(stderr, "Error in solve_chemistry_table.\n");
                 endrun(ENDRUNVAL);
             }
