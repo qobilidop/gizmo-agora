@@ -112,9 +112,6 @@ void apply_long_range_kick(integertime tstart, integertime tend)
                 P[i].Vel[j] += dvel[j];
                 P[i].dp[j] += P[i].Mass * dvel[j];
             }
-#ifdef GDE_DISTORTIONTENSOR
-        do_long_range_phase_space_kick(i, dt_gravkick);
-#endif
     }
 }
 #endif
@@ -346,10 +343,6 @@ void do_the_kick(int i, integertime tstart, integertime tend, integertime tcurre
         
         /* set the momentum shift so we know how to move the tree! */
         for(j=0;j<3;j++) {P[i].dp[j] += dp[j];}
-#ifdef GDE_DISTORTIONTENSOR
-        /* momentum-space correction for following phase-space distribution (call after momentum-space kicks) */
-        do_the_phase_space_kick(i, dt_gravkick);
-#endif
         
     } // if(TimeBinActive[P[i].TimeBin]) //
 }
@@ -465,10 +458,6 @@ void do_sph_kick_for_extra_physics(int i, integertime tstart, integertime tend, 
 #endif
 #endif
     
-#ifdef NUCLEAR_NETWORK
-    for(j = 0; j < EOS_NSPECIES; j++) {SphP[i].xnuc[j] += SphP[i].dxnuc[j] * dt_entr * All.UnitTime_in_s;}    
-    network_normalize(SphP[i].xnuc, &SphP[i].InternalEnergy, &All.nd, &All.nw);
-#endif
     
     
 

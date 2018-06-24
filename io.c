@@ -215,9 +215,6 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
         dt_gravkick_pm = (All.Ti_Current - (All.PM_Ti_begstep + All.PM_Ti_endstep) / 2) * All.Timebase_interval;
 #endif
     
-#ifdef GDE_DISTORTIONTENSOR
-    MyBigFloat flde, psde;
-#endif
     
     fp = (MyOutputFloat *) CommBuffer;
     fp_single = (float *) CommBuffer;
@@ -865,66 +862,22 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             
         case IO_CAUSTIC_COUNTER:
             /* caustic counter */
-#ifdef GDE_DISTORTIONTENSOR
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    *fp++ = (MyOutputFloat) P[pindex].caustic_counter;
-                    n++;
-                }
-#endif
             break;
             
         case IO_FLOW_DETERMINANT:
             /* physical NON-CUTOFF corrected stream determinant = 1.0/normed stream density * 1.0/initial stream density */
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && !defined(FLAG_NOT_IN_PUBLIC_CODELEAN)
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    get_current_ps_info(pindex, &flde, &psde);
-                    *fp++ = (MyOutputFloat) flde;
-                    n++;
-                }
-#endif
             break;
             
         case IO_STREAM_DENSITY:
             /* physical CUTOFF corrected stream density = normed stream density * initial stream density */
-#ifdef GDE_DISTORTIONTENSOR
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    *fp++ = (MyOutputFloat) (P[pindex].stream_density);
-                    n++;
-                }
-#endif
             break;
             
         case IO_PHASE_SPACE_DETERMINANT:
             /* determinant of phase-space distortion tensor -> should be 1 due to Liouville theorem */
-#ifdef GDE_DISTORTIONTENSOR
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    get_current_ps_info(pindex, &flde, &psde);
-                    *fp++ = (MyOutputFloat) psde;
-                    n++;
-                }
-#endif
             break;
             
         case IO_ANNIHILATION_RADIATION:
             /* time integrated stream density in physical units */
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && !defined(FLAG_NOT_IN_PUBLIC_CODELEAN)
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    *fp++ = (MyOutputFloat) (P[pindex].annihilation * GDE_INITDENSITY(pindex));
-                    *fp++ = (MyOutputFloat) (P[pindex].analytic_caustics);
-                    *fp++ = (MyOutputFloat) (P[pindex].analytic_annihilation * GDE_INITDENSITY(pindex));
-                    n++;
-                }
-#endif
             break;
             
         case IO_LAST_CAUSTIC:
@@ -962,37 +915,10 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             
         case IO_SHEET_ORIENTATION:
             /* initial orientation of the CDM sheet where the particle started */
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && (!defined(FLAG_NOT_IN_PUBLIC_CODELEAN) || defined(FLAG_NOT_IN_PUBLIC_CODEREADIC))
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,0,0);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,0,1);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,0,2);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,1,0);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,1,1);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,1,2);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,2,0);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,2,1);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,2,2);
-                    n++;
-                }
-#endif
             break;
             
         case IO_INIT_DENSITY:
             /* initial stream density in physical units  */
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && (!defined(FLAG_NOT_IN_PUBLIC_CODELEAN) || defined(FLAG_NOT_IN_PUBLIC_CODEREADIC))
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    if(All.ComovingIntegrationOn)
-                        *fp++ = GDE_INITDENSITY(pindex) / (GDE_TIMEBEGIN(pindex) * GDE_TIMEBEGIN(pindex) * GDE_TIMEBEGIN(pindex));
-                    else
-                        *fp++ = GDE_INITDENSITY(pindex);
-                    n++;
-                }
-#endif
             break;
             
         case IO_SECONDORDERMASS:
@@ -2359,39 +2285,19 @@ int blockpresent(enum iofields blocknr)
 #endif
             
         case IO_CAUSTIC_COUNTER:
-#ifdef GDE_DISTORTIONTENSOR
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_FLOW_DETERMINANT:
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && !defined(FLAG_NOT_IN_PUBLIC_CODELEAN)
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_STREAM_DENSITY:
-#ifdef GDE_DISTORTIONTENSOR
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_PHASE_SPACE_DETERMINANT:
-#ifdef GDE_DISTORTIONTENSOR
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_ANNIHILATION_RADIATION:
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && !defined(FLAG_NOT_IN_PUBLIC_CODELEAN)
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_LAST_CAUSTIC:
 #ifdef OUTPUT_GDE_LASTCAUSTIC
@@ -2401,18 +2307,10 @@ int blockpresent(enum iofields blocknr)
 #endif
             
         case IO_SHEET_ORIENTATION:
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && (!defined(FLAG_NOT_IN_PUBLIC_CODELEAN) || defined(FLAG_NOT_IN_PUBLIC_CODEREADIC))
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_INIT_DENSITY:
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && (!defined(FLAG_NOT_IN_PUBLIC_CODELEAN) || defined(FLAG_NOT_IN_PUBLIC_CODEREADIC))
-            return 1;
-#else
             return 0;
-#endif
             
             
         case IO_SECONDORDERMASS:

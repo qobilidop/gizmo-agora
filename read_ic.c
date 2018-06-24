@@ -304,39 +304,11 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
             
             
         case IO_SHEET_ORIENTATION:	/* initial particle sheet orientation */
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && defined(FLAG_NOT_IN_PUBLIC_CODEREADIC)
-            for(n = 0; n < pc; n++)
-            {
-#ifndef FLAG_NOT_IN_PUBLIC_CODELEAN
-                P[offset + n].V_matrix[0][0] = *fp++;
-                P[offset + n].V_matrix[0][1] = *fp++;
-                P[offset + n].V_matrix[0][2] = *fp++;
-                P[offset + n].V_matrix[1][0] = *fp++;
-                P[offset + n].V_matrix[1][1] = *fp++;
-                P[offset + n].V_matrix[1][2] = *fp++;
-                P[offset + n].V_matrix[2][0] = *fp++;
-                P[offset + n].V_matrix[2][1] = *fp++;
-                P[offset + n].V_matrix[2][2] = *fp++;
-#else
-                *fp+=8;
-#endif
-            }
-#endif
             break;
             
         case IO_INIT_DENSITY:	/* initial stream density */
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && defined(FLAG_NOT_IN_PUBLIC_CODEREADIC)
-            for(n = 0; n < pc; n++)
-                GDE_INITDENSITY(offset + n) = *fp++;
-            break;
-#endif
             
         case IO_CAUSTIC_COUNTER:	/* initial caustic counter */
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && defined(FLAG_NOT_IN_PUBLIC_CODEREADIC)
-            for(n = 0; n < pc; n++)
-                P[offset + n].caustic_counter = *fp++;
-            break;
-#endif
             
         case IO_SECONDORDERMASS:
             for(n = 0; n < pc; n++)
@@ -899,11 +871,6 @@ void read_file(char *fname, int readTask, int lastTask)
                    && blocknr != IO_PARTVEL
 #endif
                    )
-#if defined(FLAG_NOT_IN_PUBLIC_CODEDISTORTIONTENSOR) && defined(FLAG_NOT_IN_PUBLIC_CODEREADIC)
-                    if(RestartFlag == 0 && (blocknr > IO_U && blocknr != IO_SHEET_ORIENTATION))
-                        if(RestartFlag == 0 && (blocknr > IO_U && blocknr != IO_INIT_DENSITY))
-                            if(RestartFlag == 0 && (blocknr > IO_U && blocknr != IO_CAUSTIC_COUNTER))
-#endif
                                 continue;	/* ignore all other blocks in initial conditions */
             
 

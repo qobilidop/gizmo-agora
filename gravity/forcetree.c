@@ -46,9 +46,6 @@ static int last;
 #define NTAB 1000
 /*! variables for short-range lookup table */
 static float shortrange_table[NTAB], shortrange_table_potential[NTAB];
-#ifdef GDE_DISTORTIONTENSOR
-static float shortrange_table_tidal[NTAB];
-#endif
 /*! toggles after first tree-memory allocation, has only influence on log-files */
 static int first_flag = 0;
 
@@ -1322,11 +1319,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     integertime ti_Current = All.Ti_Current;
     double errTol2 = All.ErrTolTheta * All.ErrTolTheta;
     
-#ifdef GDE_DISTORTIONTENSOR
-    int i1, i2;
-    double fac2, h_tidal, h_inv_tidal, h3_inv_tidal, h5_inv, h5_inv_tidal, fac_tidal;
-    MyDouble tidal_tensorps[3][3];
-#endif
 #if defined(REDUCE_TREEWALK_BRANCHING) && defined(PMGRID)
     double dxx, dyy, dzz, pdxx, pdyy, pdzz;
 #endif
@@ -1358,11 +1350,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     double facpot;
     MyLongDouble pot;
     pot = 0;
-#endif
-#ifdef GDE_DISTORTIONTENSOR
-    for(i1 = 0; i1 < 3; i1++)
-        for(i2 = 0; i2 < 3; i2++)
-            tidal_tensorps[i1][i2] = 0.0;
 #endif
     
     acc_x = 0;
@@ -1487,13 +1474,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif
     
     
-#ifdef GDE_DISTORTIONTENSOR
-    /* different tidal field softening */
-    h_tidal = All.ForceSoftening[ptype];
-    h_inv_tidal = 1.0 / h_tidal;
-    h3_inv_tidal = h_inv_tidal * h_inv_tidal * h_inv_tidal;
-    h5_inv_tidal = h_inv_tidal * h_inv_tidal * h_inv_tidal * h_inv_tidal * h_inv_tidal;
-#endif
     
     
     if(mode == 0)
@@ -1922,10 +1902,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
             if(r >= h)
             {
                 fac = mass / (r2 * r);
-#ifdef GDE_DISTORTIONTENSOR
-                /* second derivative of potential needs this factor */
-                fac2 = 3.0 * mass / (r2 * r2 * r);
-#endif
 #ifdef EVALPOTENTIAL
                 facpot = -mass / r;
 #endif
@@ -1935,9 +1911,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #if !defined(ADAPTIVE_GRAVSOFT_FORALL) && !defined(ADAPTIVE_GRAVSOFT_FORGAS)
                 h_inv = 1.0 / h;
                 h3_inv = h_inv * h_inv * h_inv;
-#ifdef GDE_DISTORTIONTENSOR
-                h5_inv = h_inv * h_inv * h_inv * h_inv * h_inv;
-#endif
 #endif
                 u = r * h_inv;
                 fac = mass * kernel_gravity(u, h_inv, h3_inv, 1);
@@ -2023,14 +1996,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #ifdef EVALPOTENTIAL
                 facpot = mass * kernel_gravity(u, h_inv, h3_inv, -1);
 #endif
-#ifdef GDE_DISTORTIONTENSOR
-                /*second derivatives needed -> calculate them from softend potential,
-                 (see Gadget 1 paper and there g2 function). SIGN?! */
-                if(u < 0.5)
-                    fac2 = mass * h5_inv * (76.8 - 96.0 * u);
-                else
-                    fac2 = mass * h5_inv * (-0.2 / (u * u * u * u * u) + 48.0 / u - 76.8 + 32.0 * u);
-#endif
             } // closes r < h (else) clause
             
                 
@@ -2039,10 +2004,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
             if(tabindex < NTAB && tabindex >= 0)
 #endif // PMGRID //
             {
-#ifdef GDE_DISTORTIONTENSOR
-                /* save original fac without shortrange_table facor (needed for tidal field calculation) */
-                fac_tidal = fac;
-#endif
                 
 #ifdef PMGRID
                 fac *= shortrange_table[tabindex];
@@ -2062,38 +2023,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 acc_y += FLT(dy * fac);
                 acc_z += FLT(dz * fac);
                 
-#ifdef GDE_DISTORTIONTENSOR
-                /*
-                 tidal_tensorps[][] = Matrix of second derivatives of grav. potential, symmetric:
-                 |Txx Txy Txz|   |tidal_tensorps[0][0] tidal_tensorps[0][1] tidal_tensorps[0][2]|
-                 |Tyx Tyy Tyz| = |tidal_tensorps[1][0] tidal_tensorps[1][1] tidal_tensorps[1][2]|
-                 |Tzx Tzy Tzz|   |tidal_tensorps[2][0] tidal_tensorps[2][1] tidal_tensorps[2][2]|
-                 */
-#ifdef PMGRID
-                tidal_tensorps[0][0] += ((-fac_tidal + dx * dx * fac2) * shortrange_table[tabindex]) +
-                    dx * dx * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-                tidal_tensorps[0][1] += ((dx * dy * fac2) * shortrange_table[tabindex]) +
-                    dx * dy * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-                tidal_tensorps[0][2] += ((dx * dz * fac2) * shortrange_table[tabindex]) +
-                    dx * dz * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-                tidal_tensorps[1][1] += ((-fac_tidal + dy * dy * fac2) * shortrange_table[tabindex]) +
-                    dy * dy * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-                tidal_tensorps[1][2] += ((dy * dz * fac2) * shortrange_table[tabindex]) +
-                    dy * dz * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-                tidal_tensorps[2][2] += ((-fac_tidal + dz * dz * fac2) * shortrange_table[tabindex]) +
-                    dz * dz * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-#else
-                tidal_tensorps[0][0] += (-fac_tidal + dx * dx * fac2);
-                tidal_tensorps[0][1] += (dx * dy * fac2);
-                tidal_tensorps[0][2] += (dx * dz * fac2);
-                tidal_tensorps[1][1] += (-fac_tidal + dy * dy * fac2);
-                tidal_tensorps[1][2] += (dy * dz * fac2);
-                tidal_tensorps[2][2] += (-fac_tidal + dz * dz * fac2);
-#endif
-                tidal_tensorps[1][0] = tidal_tensorps[0][1];
-                tidal_tensorps[2][0] = tidal_tensorps[0][2];
-                tidal_tensorps[2][1] = tidal_tensorps[1][2];
-#endif // GDE_DISTORTIONTENSOR //
 
             } // closes TABINDEX<NTAB
             
@@ -2174,9 +2103,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #ifdef EVALPOTENTIAL
         P[target].Potential = pot;
 #endif
-#ifdef GDE_DISTORTIONTENSOR
-        for(i1 = 0; i1 < 3; i1++) {for(i2 = 0; i2 < 3; i2++) {P[target].tidal_tensorps[i1][i2] = tidal_tensorps[i1][i2];}}
-#endif
 #ifdef BH_CALC_DISTANCES
         P[target].min_dist_to_bh = sqrt( min_dist_to_bh2 );
         P[target].min_xyz_to_bh[0] = min_xyz_to_bh[0];   /* remember, dx = x_BH - myx */
@@ -2191,9 +2117,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
         GravDataResult[target].Acc[2] = acc_z;
 #ifdef EVALPOTENTIAL
         GravDataResult[target].Potential = pot;
-#endif
-#ifdef GDE_DISTORTIONTENSOR
-        for(i1 = 0; i1 < 3; i1++) {for(i2 = 0; i2 < 3; i2++) {GravDataResult[target].tidal_tensorps[i1][i2] = tidal_tensorps[i1][i2];}}
 #endif
 #ifdef BH_CALC_DISTANCES
         GravDataResult[target].min_dist_to_bh = sqrt( min_dist_to_bh2 );
@@ -3050,9 +2973,6 @@ void force_treeallocate(int maxnodes, int maxpart)
             u = 3.0 / NTAB * (i + 0.5);
             shortrange_table[i] = erfc(u) + 2.0 * u / sqrt(M_PI) * exp(-u * u);
             shortrange_table_potential[i] = erfc(u);
-#ifdef GDE_DISTORTIONTENSOR
-            shortrange_table_tidal[i] = 4.0 * u * u * u / sqrt(M_PI) * exp(-u * u);
-#endif
         }
     }
 }

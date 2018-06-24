@@ -150,10 +150,6 @@ void begrun(void)
     tillotson_eos_init();
 #endif
     
-#ifdef NUCLEAR_NETWORK
-  network_init(All.EosSpecies, All.NetworkRates, All.NetworkPartFunc, All.NetworkMasses, All.NetworkWeakrates, &All.nd);
-  network_workspace_init(&All.nd, &All.nw);
-#endif
 
 #ifdef TURB_DRIVING
     init_turb();
@@ -289,15 +285,6 @@ void begrun(void)
         strcpy(All.EosTable, all.EosTable);
 #endif
 
-#ifdef NUCLEAR_NETWORK
-      strcpy(All.NetworkRates, all.NetworkRates);
-      strcpy(All.NetworkPartFunc, all.NetworkPartFunc);
-      strcpy(All.NetworkMasses, all.NetworkMasses);
-      strcpy(All.NetworkWeakrates, all.NetworkWeakrates);
-      All.nd = all.nd;
-      All.nw = all.nw;
-      All.NetworkTempThreshold = all.NetworkTempThreshold;
-#endif
 
       if(All.TimeMax != all.TimeMax)
 	readjust_timebase(All.TimeMax, all.TimeMax);
@@ -380,10 +367,6 @@ void set_units(void)
   All.UnitPressure_in_cgs = All.UnitMass_in_g / All.UnitLength_in_cm / pow(All.UnitTime_in_s, 2);
   All.UnitEnergy_in_cgs = All.UnitMass_in_g * pow(All.UnitLength_in_cm, 2) / pow(All.UnitTime_in_s, 2);
     
-#ifdef GDE_DISTORTIONTENSOR
-  /* 5.609589206e23 is the factor to convert from g to GeV/c^2, the rest comes from All.UnitDensity_in_cgs */
-  All.UnitDensity_in_Gev_per_cm3 = 5.609589206e23 / pow(All.UnitLength_in_cm, 3) * All.UnitMass_in_g;
-#endif
   /* convert some physical input parameters to internal units */
 
   All.Hubble_H0_CodeUnits = HUBBLE * All.UnitTime_in_s;
@@ -397,10 +380,6 @@ void set_units(void)
       printf("UnitVelocity_in_cm_per_s = %g \n", All.UnitVelocity_in_cm_per_s);
       printf("UnitDensity_in_cgs = %g \n", All.UnitDensity_in_cgs);
       printf("UnitEnergy_in_cgs = %g \n", All.UnitEnergy_in_cgs);
-#ifdef GDE_DISTORTIONTENSOR
-      printf("Annihilation radiation units:\n");
-      printf("UnitDensity_in_Gev_per_cm3 = %g\n", All.UnitDensity_in_Gev_per_cm3);
-#endif
 
       printf("\n");
     }
@@ -623,14 +602,6 @@ void open_outputfiles(void)
 #endif
 
 
-#ifdef SCF_POTENTIAL
-  sprintf(buf, "%s%s", All.OutputDir, "scf_coeff.txt");
-  if(!(FdSCF = fopen(buf, mode)))
-    {
-      printf("error in opening file '%s'\n", buf);
-      endrun(1);
-    }
-#endif
 
 #ifdef GALSF
   sprintf(buf, "%s%s", All.OutputDir, "sfr.txt");
@@ -1081,15 +1052,6 @@ void read_parameter_file(char *fname)
       addr[nt] = &All.MinGasTemp;
       id[nt++] = REAL;
 
-#ifdef GDE_DISTORTIONTENSOR
-      strcpy(tag[nt], "TidalCorrection");
-      addr[nt] = &All.TidalCorrection;
-      id[nt++] = REAL;
-
-      strcpy(tag[nt], "DM_velocity_dispersion");
-      addr[nt] = &All.DM_velocity_dispersion;
-      id[nt++] = REAL;
-#endif
 #ifdef DM_SCALARFIELD_SCREENING
       strcpy(tag[nt], "ScalarBeta");
       addr[nt] = &All.ScalarBeta;
@@ -1376,27 +1338,6 @@ void read_parameter_file(char *fname)
 #endif
         
         
-#ifdef NUCLEAR_NETWORK
-      strcpy(tag[nt], "NetworkRates");
-      addr[nt] = All.NetworkRates;
-      id[nt++] = STRING;
-
-      strcpy(tag[nt], "NetworkPartFunc");
-      addr[nt] = All.NetworkPartFunc;
-      id[nt++] = STRING;
-
-      strcpy(tag[nt], "NetworkMasses");
-      addr[nt] = All.NetworkMasses;
-      id[nt++] = STRING;
-
-      strcpy(tag[nt], "NetworkWeakrates");
-      addr[nt] = All.NetworkWeakrates;
-      id[nt++] = STRING;
-
-      strcpy(tag[nt], "NetworkTempThreshold");
-      addr[nt] = &All.NetworkTempThreshold;
-      id[nt++] = REAL;
-#endif
 
 
 #ifdef ADAPTIVE_GRAVSOFT_FORALL

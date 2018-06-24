@@ -670,70 +670,7 @@ void rt_source_injection(void);
 
 void find_block(char *label,FILE *fd);
 
-#ifdef GDE_DISTORTIONTENSOR
-void get_half_kick_distortion(int pindex, MyBigFloat half_kick_add[6][6]);
-void analyse_phase_space(int pindex,
-                         MyBigFloat *s_1, MyBigFloat *s_2, MyBigFloat *s_3,
-                         MyBigFloat *smear_x, MyBigFloat *smear_y, MyBigFloat *smear_z,
-                         MyBigFloat *second_deriv, MyBigFloat *sigma);
-MyBigFloat get_analytic_annihilation(MyBigFloat s_1, MyBigFloat s_2, MyBigFloat s_3,
-                                   MyBigFloat s_1_prime, MyBigFloat s_2_prime, MyBigFloat s_3_prime,
-                                   MyBigFloat second_deriv, MyBigFloat second_deriv_prime,
-                                   MyBigFloat dt, MyBigFloat sigma);
-MyBigFloat get_max_caustic_density(MyBigFloat s_1, MyBigFloat s_2,
-                                 MyBigFloat s_1_prime, MyBigFloat s_2_prime,
-                                 MyBigFloat second_deriv, MyBigFloat second_deriv_prime,
-                                 MyBigFloat sigma,
-                                 int pindex);
-void get_current_ps_info(int pindex, MyBigFloat * flde, MyBigFloat * psde);
-void do_phase_space_drift(int i, double dt_drift);
-void do_the_phase_space_kick(int i, double dt_gravkick);
-void do_long_range_phase_space_kick(int i, double dt_gravkick);
-/* some math functions we need from phasespace_math.c */
-void ludcmp(MyBigFloat ** a, int n, int *indx, MyBigFloat * d);
-MyBigFloat **matrix(long nrl, long nrh, long ncl, long nch);
-MyBigFloat *vector(long nl, long nh);
-void free_matrix(MyBigFloat ** m, long nrl, long nrh, long ncl, long nch);
-void free_vector(MyBigFloat * v, long nl, long nh);
-void mult_matrix(MyBigFloat ** matrix_a, MyBigFloat ** matrix_b, int dimension, MyBigFloat ** matrix_result);
-void mult_matrix_transpose_A(MyBigFloat ** matrix_a, MyBigFloat ** matrix_b, int dimension, MyBigFloat ** matrix_result);
-void luinvert(MyBigFloat ** input_matrix, int n, MyBigFloat ** inverse_matrix);
-void eigsrt(MyBigFloat d[], MyBigFloat ** v, int n);
-void jacobi(MyBigFloat ** a, int n, MyBigFloat d[], MyBigFloat ** v, int *nrot);
-#ifdef PMGRID
-void pmtidaltensor_periodic_diff(void);
-void pmtidaltensor_periodic_fourier(int component);
-int pmtidaltensor_nonperiodic_diff(int grnr);
-int pmtidaltensor_nonperiodic_fourier(int component, int grnr);
-void check_tidaltensor_periodic(int particle_ID);
-void check_tidaltensor_nonperiodic(int particle_ID);
-#endif
-#endif
 
-#ifdef SCF_POTENTIAL
-void SCF_do_center_of_mass_correction(double fac_rad, double start_rad, double fac_part, int max_iter);
-void SCF_write(int task);
-void SCF_calc_from_random(long *seed);
-void SCF_calc_from_particles(void);
-void SCF_init(void);
-void SCF_reset(void);
-void SCF_free(void);
-void SCF_evaluate(MyDouble x, MyDouble y, MyDouble z, MyDouble *potential, MyDouble *ax, MyDouble *ay, MyDouble *az);
-void SCF_collect_update(void);
-
-void sphere_acc(double x, double y, double z, double *xa, double *ya, double *za);
-void to_unit(double x, double y, double z, double *xs, double *ys, double *zs);
-double ran1(long *idum);
-double gasdev(long *idum);
-double factrl(int n);
-int nlm_all(int num, int n, int l, int m);
-int nlm(int n, int l, int m);
-int nl(int n, int l);
-int lm(int l, int m);
-int kdelta(int a, int b);
-double gnlm_var(int n, int l, int m);
-double hnlm_var(int n, int l, int m);
-#endif
 
 int ags_gravity_kernel_shared_BITFLAG(short int particle_type_primary);
 #ifdef ADAPTIVE_GRAVSOFT_FORALL

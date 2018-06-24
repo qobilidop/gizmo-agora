@@ -314,9 +314,6 @@ integertime get_timestep(int p,		/*!< particle index */
         hubble_param = 1.0;
 #endif
     
-#ifdef NUCLEAR_NETWORK
-    double dt_network, dt_species;
-#endif
     
     if(flag == 0)
     {
@@ -582,33 +579,6 @@ integertime get_timestep(int p,		/*!< particle index */
                 if(dt_divv < dt) {dt = dt_divv;}
             }
             
-#ifdef NUCLEAR_NETWORK
-            if(SphP[p].Temperature > 1e7)
-            {
-                /* check if the new timestep blows up our abundances */
-                dt_network = dt * All.UnitTime_in_s;
-                for(k = 0; k < EOS_NSPECIES; k++)
-                {
-                    if(SphP[p].dxnuc[k] > 0)
-                    {
-                        dt_species = (1.0 - SphP[p].xnuc[k]) / SphP[p].dxnuc[k];
-                        if(dt_species < dt_network)
-                            dt_network = dt_species;
-                    }
-                    else if(SphP[p].dxnuc[k] < 0)
-                    {
-                        dt_species = (0.0 - SphP[p].xnuc[k]) / SphP[p].dxnuc[k];
-                        if(dt_species < dt_network)
-                            dt_network = dt_species;
-                    }
-                    
-                }
-                
-                dt_network /= All.UnitTime_in_s;
-                if(dt_network < dt)
-                    dt = dt_network;
-            }
-#endif
             
             
 #ifdef SUPER_TIMESTEP_DIFFUSION

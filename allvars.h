@@ -454,11 +454,6 @@
 #include <assert.h>
 
 
-#ifdef NUCLEAR_NETWORK
-#include "nuclear/nuclear_network.h"
-void network_normalize(double *x, double *e, const struct network_data *nd, struct network_workspace *nw);
-int network_integrate( double temp, double rho, const double *x, double *dx, double dt, double *dedt, double *drhodt, const struct network_data *nd, struct network_workspace *nw );
-#endif
 
 
 #ifdef MYSORT
@@ -748,7 +743,7 @@ typedef unsigned long long peanokey;
 
 
 
-#ifndef FLAG_NOT_IN_PUBLIC_CODETYPES 
+#ifndef GDE_TYPES 
 #define GDE_TYPES 2
 #endif
 
@@ -1142,9 +1137,6 @@ extern FILE
 #endif
  *FdCPU;        /*!< file handle for cpu.txt log-file. */
 
-#ifdef SCF_POTENTIAL
-extern FILE *FdSCF;
-#endif
 
 #ifdef GALSF
 extern FILE *FdSfr;		/*!< file handle for sfr.txt log-file. */
@@ -1153,11 +1145,6 @@ extern FILE *FdSfr;		/*!< file handle for sfr.txt log-file. */
 extern FILE *FdSneIIHeating;	/*!< file handle for SNIIheating.txt log-file */
 #endif
 
-#ifdef GDE_DISTORTIONTENSOR
-#ifdef PMGRID
-extern FILE *FdTidaltensor;     /*!< file handle for tidaltensor.txt log-file. */
-#endif
-#endif
 
 #ifdef BLACK_HOLES
 extern FILE *FdBlackHoles;	/*!< file handle for blackholes.txt log-file. */
@@ -1281,9 +1268,6 @@ extern struct global_data_all_processes
 				   units specified. Otherwise the value provided is taken as internal gravity
 				   constant G. */
     G;				/*!< Gravity-constant in internal units */
-#ifdef GDE_DISTORTIONTENSOR
-  double UnitDensity_in_Gev_per_cm3; /*!< factor to convert internal density unit to GeV/c^2 / cm^3 */
-#endif
     /* Cosmology */
 
 #ifdef MAGNETIC
@@ -1472,14 +1456,6 @@ extern struct global_data_all_processes
     
 
     
-#ifdef GDE_DISTORTIONTENSOR
-  /* present day velocity dispersion of DM particle in cm/s (e.g. Neutralino = 0.03 cm/s) */
-  double DM_velocity_dispersion;
-  double TidalCorrection;
-#ifdef GDE_LEAN
-  double GDEInitStreamDensity;
-#endif
-#endif
 
 #ifdef GALSF		/* star formation and feedback sector */
   double CritOverDensity;
@@ -1626,15 +1602,6 @@ extern struct global_data_all_processes
     char EosTable[100];
 #endif
 
-#ifdef NUCLEAR_NETWORK
-  char NetworkRates[100];
-  char NetworkPartFunc[100];
-  char NetworkMasses[100];
-  char NetworkWeakrates[100];
-  struct network_data nd;
-  struct network_workspace nw;
-  double NetworkTempThreshold;
-#endif
 
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
   double AGS_DesNumNgb;
@@ -1705,42 +1672,6 @@ extern ALIGN(32) struct particle_data
 #endif
 #endif
     
-#ifdef GDE_DISTORTIONTENSOR
-    MyBigFloat distortion_tensorps[6][6];               /*!< phase space distortion tensor */
-    MyBigFloat last_determinant;                        /*!< last real space distortion tensor determinant */
-    MyBigFloat stream_density;                          /*!< physical stream density that is going to be integrated */
-    double tidal_tensorps[3][3];                        /*!< tidal tensor (=second derivatives of grav. potential) */
-    float caustic_counter;                              /*!< caustic counter */
-#ifndef FLAG_NOT_IN_PUBLIC_CODELEAN
-    MyBigFloat annihilation;                            /*!< integrated annihilation rate */
-    MyBigFloat analytic_annihilation;                   /*!< analytically integrated annihilation rate */
-    MyBigFloat rho_normed_cutoff_current;               /*!< current and last normed_cutoff density in rho_max/rho_init * sqrt(sigma) */
-    MyBigFloat rho_normed_cutoff_last;
-    MyBigFloat s_1_current, s_2_current, s_3_current;   /*! < current and last stretching factor */
-    MyBigFloat s_1_last, s_2_last, s_3_last;
-    MyBigFloat second_deriv_current;                    /*! < current and last second derivative */
-    MyBigFloat second_deriv_last;
-    double V_matrix[3][3];                              /*!< initial orientation of CDM sheet the particle is embedded in */
-    float init_density;                                 /*!< initial stream density */
-    float analytic_caustics;                            /*!< number of caustics that were integrated analytically */
-    float a0;
-#endif
-#ifdef OUTPUT_GDE_LASTCAUSTIC
-    MyFloat lc_Time;                                  /*!< time of caustic passage */
-    MyFloat lc_Pos[3];                                /*!< position of caustic */
-    MyFloat lc_Vel[3];                                /*!< particle velocity when passing through caustic */
-    MyFloat lc_rho_normed_cutoff;                     /*!< normed_cutoff density at caustic */
-    MyFloat lc_Dir_x[3];                              /*!< principal axis frame of smear out */
-    MyFloat lc_Dir_y[3];
-    MyFloat lc_Dir_z[3];
-    MyFloat lc_smear_x;                               /*!< smear out length */
-    MyFloat lc_smear_y;
-    MyFloat lc_smear_z;
-#endif
-#ifdef PMGRID
-    double tidal_tensorpsPM[3][3];	            /*!< for TreePM simulations, long range tidal field */
-#endif
-#endif // GDE_DISTORTIONTENSOR // 
     
     
 #ifdef GALSF
@@ -1840,7 +1771,7 @@ extern ALIGN(32) struct particle_data
  *DomainPartBuf;		/*!< buffer for particle data used in domain decomposition */
 
 
-#ifndef FLAG_NOT_IN_PUBLIC_CODELEAN
+#ifndef GDE_LEAN
 #define GDE_TIMEBEGIN(i) (P[i].a0)
 #define GDE_VMATRIX(i, a, b) (P[i].V_matrix[a][b])
 #define GDE_INITDENSITY(i) (P[i].init_density)
@@ -2165,9 +2096,6 @@ extern struct gravdata_out
     MyLongDouble Acc[3];
 #ifdef EVALPOTENTIAL
     MyLongDouble Potential;
-#endif
-#ifdef GDE_DISTORTIONTENSOR
-    MyLongDouble tidal_tensorps[3][3];
 #endif
 #ifdef BH_CALC_DISTANCES
     MyFloat min_dist_to_bh;

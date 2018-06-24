@@ -159,9 +159,6 @@ void drift_particle(int i, integertime time1)
     }
 #endif
     
-#ifdef GDE_DISTORTIONTENSOR
-    do_phase_space_drift(i, dt_drift);
-#endif
     
     if((P[i].Type == 0) && (P[i].Mass > 0))
         {

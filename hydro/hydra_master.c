@@ -753,41 +753,6 @@ void hydro_final_operations_and_cleanup(void)
     
     
     
-#ifdef NUCLEAR_NETWORK
-    if(ThisTask == 0)
-    {
-        printf("Doing nuclear network.\n");
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    tstart = my_second();
-    for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i])
-        if(P[i].Type == 0)
-        {
-            /* evaluate network here, but do it only for high enough temperatures */
-            if(SphP[i].Temperature > All.NetworkTempThreshold)
-            {
-                nuc_particles++;
-                network_integrate(SphP[i].Temperature, SphP[i].Density * All.UnitDensity_in_cgs, SphP[i].xnuc,
-                                  SphP[i].dxnuc, dt*All.UnitTime_in_s, &dedt_nuc, NULL, &All.nd, &All.nw);
-                SphP[i].DtInternalEnergy += dedt_nuc * All.UnitEnergy_in_cgs / All.UnitTime_in_s;
-            }
-            else
-            {
-                for(k = 0; k < EOS_NSPECIES; k++)
-                {
-                    SphP[i].dxnuc[k] = 0;
-                }
-            }
-        }
-    tend = my_second();
-    timenetwork += timediff(tstart, tend);
-    MPI_Allreduce(&nuc_particles, &nuc_particles_sum, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-    if(ThisTask == 0)
-    {
-        printf("Nuclear network done for %d particles.\n", nuc_particles_sum);
-    }
-    timewait1 += timediff(tend, my_second());
-#endif
 }
 
 
