@@ -304,7 +304,7 @@
 
 /* enable radiation pressure forces unless they have been explicitly disabled */
 
-#if ((defined(RT_FLUXLIMITER) || defined(RT_RAD_PRESSURE_FORCES) || defined(RT_DIFFUSION_EXPLICIT)) && !defined(RT_EVOLVE_FLUX)) && !defined(RT_EVOLVE_EDDINGTON_TENSOR)
+#if ((defined(RT_FLUXLIMITER) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(RT_DIFFUSION_EXPLICIT)) && !defined(FLAG_NOT_IN_PUBLIC_CODE)) && !defined(RT_EVOLVE_EDDINGTON_TENSOR)
 #define RT_EVOLVE_EDDINGTON_TENSOR
 #endif
 
@@ -431,7 +431,7 @@
 #define DOGRAD_SOUNDSPEED 1
 #endif
 
-#if defined(CONDUCTION) || defined(VISCOSITY) || defined(TURB_DIFFUSION) || defined(MHD_NON_IDEAL) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(FLAG_NOT_IN_PUBLIC_CODE_DISABLE_DIFFUSION)) || (defined(RT_DIFFUSION_EXPLICIT) && !defined(RT_EVOLVE_FLUX))
+#if defined(CONDUCTION) || defined(VISCOSITY) || defined(TURB_DIFFUSION) || defined(MHD_NON_IDEAL) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(FLAG_NOT_IN_PUBLIC_CODE_DISABLE_DIFFUSION)) || (defined(RT_DIFFUSION_EXPLICIT) && !defined(FLAG_NOT_IN_PUBLIC_CODE))
 #ifndef DISABLE_SUPER_TIMESTEPPING
 //#define SUPER_TIMESTEP_DIFFUSION
 #endif
@@ -503,53 +503,6 @@ typedef  int integertime;
 #endif
 
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(RT_USE_GRAVTREE)
-#define RT_BIN0 (-1)
-
-#define RT_FREQ_BIN_H0 (RT_BIN0+0)
-
-#ifndef RT_PHOTOION_MULTIFREQUENCY
-#define RT_FREQ_BIN_He0 (RT_FREQ_BIN_H0+0)
-#define RT_FREQ_BIN_He1 (RT_FREQ_BIN_He0+0)
-#define RT_FREQ_BIN_He2 (RT_FREQ_BIN_He1+0)
-#else
-#define RT_FREQ_BIN_He0 (RT_FREQ_BIN_H0+1)
-#define RT_FREQ_BIN_He1 (RT_FREQ_BIN_He0+1)
-#define RT_FREQ_BIN_He2 (RT_FREQ_BIN_He1+1)
-#endif
-
-#define RT_FREQ_BIN_FIRE_UV (RT_FREQ_BIN_He2+0)
-#define RT_FREQ_BIN_FIRE_OPT (RT_FREQ_BIN_FIRE_UV+0)
-#define RT_FREQ_BIN_FIRE_IR (RT_FREQ_BIN_FIRE_OPT+0)
-
-#ifndef RT_SOFT_XRAY
-#define RT_FREQ_BIN_SOFT_XRAY (RT_FREQ_BIN_FIRE_IR+0)
-#else
-#define RT_FREQ_BIN_SOFT_XRAY (RT_FREQ_BIN_FIRE_IR+1)
-#endif
-
-#ifndef RT_HARD_XRAY
-#define RT_FREQ_BIN_HARD_XRAY (RT_FREQ_BIN_SOFT_XRAY+0)
-#else
-#define RT_FREQ_BIN_HARD_XRAY (RT_FREQ_BIN_SOFT_XRAY+1)
-#endif
-
-#define RT_FREQ_BIN_PHOTOELECTRIC (RT_FREQ_BIN_HARD_XRAY+0)
-
-#define RT_FREQ_BIN_LYMAN_WERNER (RT_FREQ_BIN_PHOTOELECTRIC+0)
-
-#define RT_FREQ_BIN_NUV (RT_FREQ_BIN_LYMAN_WERNER+0)
-
-#define RT_FREQ_BIN_OPTICAL_NIR (RT_FREQ_BIN_NUV+0)
-
-
-/* be sure to add all new wavebands to these lists, or else we will run into problems */
-/* ALSO, the IR bin here should be the last bin: add additional bins ABOVE this line */
-#define RT_FREQ_BIN_INFRARED (RT_FREQ_BIN_OPTICAL_NIR+0)
-
-#define N_RT_FREQ_BINS (RT_FREQ_BIN_INFRARED+1)
-
-#endif // #if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(RT_USE_GRAVTREE)
 
 
 #ifndef  MULTIPLEDOMAINS
@@ -743,9 +696,7 @@ typedef unsigned long long peanokey;
 
 
 
-#ifndef GDE_TYPES 
 #define GDE_TYPES 2
-#endif
 
 #ifndef LONGIDS
 typedef unsigned int MyIDType;
@@ -1440,9 +1391,6 @@ extern struct global_data_all_processes
 
 
     
-#ifdef RT_EVOLVE_INTENSITIES
-    double RT_Intensity_Direction[N_RT_INTENSITY_BINS][3];
-#endif
 
     
     
@@ -1749,10 +1697,6 @@ extern ALIGN(32) struct particle_data
     int dt_step;
 #endif
     
-#ifdef SCF_HYBRID
-    MyDouble GravAccelSum[3];
-    MyFloat MassBackup;
-#endif
     
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
     MyDouble AGS_Hsml;          /*!< smoothing length (for gravitational forces) */
@@ -1771,15 +1715,9 @@ extern ALIGN(32) struct particle_data
  *DomainPartBuf;		/*!< buffer for particle data used in domain decomposition */
 
 
-#ifndef GDE_LEAN
 #define GDE_TIMEBEGIN(i) (P[i].a0)
 #define GDE_VMATRIX(i, a, b) (P[i].V_matrix[a][b])
 #define GDE_INITDENSITY(i) (P[i].init_density)
-#else
-#define GDE_TIMEBEGIN(i) (All.TimeBegin)
-#define GDE_VMATRIX(i, a, b) (0.0)
-#define GDE_INITDENSITY(i) (All.GDEInitStreamDensity)
-#endif
 
 #if defined(BLACK_HOLES)
 #define BPP(i) P[(i)]
@@ -2074,11 +2012,11 @@ extern struct data_nodelist
 extern struct gravdata_in
 {
     MyFloat Pos[3];
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     MyFloat Mass;
 #endif
     int Type;
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     MyFloat Soft;
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
     MyFloat AGS_zeta;
@@ -2434,9 +2372,6 @@ extern ALIGN(32) struct NODE
   double GravCost;
   integertime Ti_current;
 
-#ifdef RT_USE_GRAVTREE
-  MyFloat stellar_lum[N_RT_FREQ_BINS]; /*!< luminosity in the node*/
-#endif
 
 
 #ifdef BH_CALC_DISTANCES

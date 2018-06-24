@@ -271,9 +271,6 @@ void calculate_non_standard_physics(void)
     CPU_Step[CPU_COOLINGSFR] += measure_time(); // finish time calc for SFR+cooling
 #endif
         
-#ifdef SCF_HYBRID
-    SCF_do_center_of_mass_correction(0.75, 10.0 * SCF_HQ_A, 0.01, 1000);
-#endif
 }
 
 

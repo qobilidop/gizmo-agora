@@ -366,14 +366,8 @@ void set_predicted_sph_quantities_for_extra_physics(int i)
         for(kf=0;kf<N_RT_FREQ_BINS;kf++)
         {
             SphP[i].E_gamma_Pred[kf] = SphP[i].E_gamma[kf];
-#if defined(RT_EVOLVE_FLUX)
-            for(k=0;k<3;k++) SphP[i].Flux_Pred[kf][k] = SphP[i].Flux[kf][k];
-#endif
         }
         rt_eddington_update_calculation(i);
-#endif
-#ifdef RT_EVOLVE_INTENSITIES
-        for(kf=0;kf<N_RT_FREQ_BINS;kf++) {for(k=0;k<N_RT_INTENSITY_BINS;k++) {SphP[i].Intensity_Pred[kf][k] = SphP[i].Intensity[kf][k];}}
 #endif
 
 #ifdef EOS_ELASTIC

@@ -654,14 +654,6 @@ double enclosed_mass(double R);
 void pm_setup_nonperiodic_kernel(void);
 
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(RT_USE_GRAVTREE)
-int rt_get_source_luminosity(int i, double sigma_0, double *lum);
-double rt_kappa(int j, int k_freq);
-double rt_absorption_rate(int i, int k_freq);
-double rt_diffusion_coefficient(int i, int k_freq);
-void rt_eddington_update_calculation(int j);
-void rt_update_driftkick(int i, double dt_entr, int mode);
-#endif
 #ifdef RT_SOURCE_INJECTION
 void rt_source_injection(void);
 #endif

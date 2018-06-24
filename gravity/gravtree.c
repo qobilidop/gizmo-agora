@@ -151,48 +151,6 @@ void gravity_tree(void)
     ewald_max = 0;
 #endif
     
-#ifdef SCF_HYBRID
-    int scf_counter, max_scf_counter = 1;
-    
-    if(SCF_HYBRID == 2)
-        max_scf_counter = 0;
-    /*
-     calculates the following forces (depending on SCF_HYBRID value)
-     STAR<->STAR, STAR->DM (scf_counter=0)
-     DM<->DM (scf_counter=1)
-     */
-    
-    for(scf_counter = 0; scf_counter <= max_scf_counter; scf_counter++)
-    {
-        /* set DM mass to zero and set gravsum to zero */
-        if(scf_counter == 0)
-        {
-            for(i = 0; i < NumPart; i++)
-            {
-                if(P[i].Type == 1)	/* DM particle */
-                    P[i].Mass = 0.0;
-                
-                for(j = 0; j < 3; j++)
-                    P[i].GravAccelSum[j] = 0.0;
-            }
-        }
-        /* set stellar mass to zero */
-        if(scf_counter == 1)
-        {
-            for(i = 0; i < NumPart; i++)
-            {
-                if(P[i].Type == 2)	/* stellar particle */
-                    P[i].Mass = 0.0;
-            }
-        }
-        
-        /* particle masses changed, so reconstruct tree */
-        if(ThisTask == 0)
-            printf("SCF Tree construction %d\n", scf_counter);
-        force_treebuild(NumPart, NULL);
-        if(ThisTask == 0)
-            printf("done.\n");
-#endif
         
         if(GlobNumForceUpdate > All.TreeDomainUpdateFrequency * All.TotNumPart)
         {
@@ -407,10 +365,10 @@ void gravity_tree(void)
                     GravDataIn[j].Type = P[place].Type;
                     GravDataIn[j].OldAcc = P[place].OldAcc;
                     for(k = 0; k < 3; k++) {GravDataIn[j].Pos[k] = P[place].Pos[k];}
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
                     GravDataIn[j].Mass = P[place].Mass;
 #endif
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
                     if( (P[place].Type == 0) && (PPP[place].Hsml > All.ForceSoftening[P[place].Type]) )
                         GravDataIn[j].Soft = PPP[place].Hsml;
                     else
@@ -576,35 +534,6 @@ void gravity_tree(void)
             while(ndone < NTask);
         }			/* Ewald_iter */
         
-#ifdef SCF_HYBRID
-        /* restore particle masses */
-        for(i = 0; i < NumPart; i++)
-            P[i].Mass = P[i].MassBackup;
-        
-        
-        /* add up accelerations from tree to AccelSum */
-        for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i])
-        {
-            /* ignore STAR<-DM contribution */
-            if(scf_counter == 1 && P[i].Type == 2)
-            {
-                continue;
-            }
-            else
-            {
-                for(j = 0; j < 3; j++)
-                    P[i].GravAccelSum[j] += P[i].GravAccel[j];
-            }
-        }
-    }				/* scf_counter */
-    
-    /* set acceleration to summed up accelerations */
-    for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i])
-    {
-        for(j = 0; j < 3; j++)
-            P[i].GravAccel[j] = P[i].GravAccelSum[j];
-    }
-#endif
     
     
     

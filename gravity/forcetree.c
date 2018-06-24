@@ -514,10 +514,6 @@ void force_update_node_recursive(int no, int sib, int father)
 #ifdef DM_SCALARFIELD_SCREENING
     MyFloat s_dm[3], vs_dm[3], mass_dm;
 #endif
-#ifdef RT_USE_GRAVTREE
-    MyFloat stellar_lum[N_RT_FREQ_BINS], sigma_eff=0;
-    for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
-#endif
     
     MyFloat maxsoft;
     
@@ -540,9 +536,6 @@ void force_update_node_recursive(int no, int sib, int father)
         
         last = no;
         
-#ifdef RT_USE_GRAVTREE
-        for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
-#endif
 #ifdef BH_CALC_DISTANCES
         MyFloat bh_mass=0;
         MyFloat bh_pos_times_mass[3]={0,0,0};   /* position of each black hole in the node times its mass; divide by total mass at the end to get COM */
@@ -600,9 +593,6 @@ void force_update_node_recursive(int no, int sib, int father)
                         vs[0] += (Nodes[p].u.d.mass * Extnodes[p].vs[0]);
                         vs[1] += (Nodes[p].u.d.mass * Extnodes[p].vs[1]);
                         vs[2] += (Nodes[p].u.d.mass * Extnodes[p].vs[2]);
-#ifdef RT_USE_GRAVTREE
-                        for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += (Nodes[p].stellar_lum[k]);}
-#endif
 #ifdef BH_CALC_DISTANCES
                         bh_mass += Nodes[p].bh_mass;
                         bh_pos_times_mass[0] += Nodes[p].bh_pos[0] * Nodes[p].bh_mass;
@@ -654,14 +644,6 @@ void force_update_node_recursive(int no, int sib, int father)
                     vs[1] += (pa->Mass * pa->Vel[1]);
                     vs[2] += (pa->Mass * pa->Vel[2]);
                     
-#ifdef RT_USE_GRAVTREE
-                    double lum[N_RT_FREQ_BINS];
-                    int active_check = rt_get_source_luminosity(p,sigma_eff,lum);
-                    if(active_check)
-                    {
-                        double l_sum = 0; for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += lum[k]; l_sum += lum[k];}
-                    }
-#endif
                     
                     
                     
@@ -775,9 +757,6 @@ void force_update_node_recursive(int no, int sib, int father)
         Nodes[no].u.d.s[1] = s[1];
         Nodes[no].u.d.s[2] = s[2];
         Nodes[no].GravCost = 0;
-#ifdef RT_USE_GRAVTREE
-        for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = stellar_lum[k];}
-#endif
 #ifdef BH_CALC_DISTANCES
         Nodes[no].bh_mass = bh_mass;
         if(bh_mass > 0)
@@ -866,9 +845,6 @@ void force_exchange_pseudodata(void)
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
         MyFloat maxsoft;
 #endif
-#ifdef RT_USE_GRAVTREE
-        MyFloat stellar_lum[N_RT_FREQ_BINS];
-#endif
 #ifdef BH_CALC_DISTANCES
         MyFloat bh_mass;
         MyFloat bh_pos[3];
@@ -917,9 +893,6 @@ void force_exchange_pseudodata(void)
             DomainMoment[i].bitflags = Nodes[no].u.d.bitflags;
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
             DomainMoment[i].maxsoft = Nodes[no].maxsoft;
-#endif
-#ifdef RT_USE_GRAVTREE
-            int k; for(k=0;k<N_RT_FREQ_BINS;k++) {DomainMoment[i].stellar_lum[k] = Nodes[no].stellar_lum[k];}
 #endif
 #ifdef BH_CALC_DISTANCES
             DomainMoment[i].bh_mass = Nodes[no].bh_mass;
@@ -986,9 +959,6 @@ void force_exchange_pseudodata(void)
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
                     Nodes[no].maxsoft = DomainMoment[i].maxsoft;
 #endif
-#ifdef RT_USE_GRAVTREE
-                    int k; for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = DomainMoment[i].stellar_lum[k];}
-#endif
 #ifdef BH_CALC_DISTANCES
                     Nodes[no].bh_mass = DomainMoment[i].bh_mass;
                     Nodes[no].bh_pos[0] = DomainMoment[i].bh_pos[0];
@@ -1021,18 +991,12 @@ void force_treeupdate_pseudos(int no)
     MyFloat divVmax;
     MyFloat s[3], vs[3], mass;
     
-#ifdef RT_USE_GRAVTREE
-    MyFloat stellar_lum[N_RT_FREQ_BINS];
-#endif
 #ifdef DM_SCALARFIELD_SCREENING
     MyFloat s_dm[3], vs_dm[3], mass_dm;
 #endif
     
     MyFloat maxsoft;
     
-#ifdef RT_USE_GRAVTREE
-    for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
-#endif
 #ifdef BH_CALC_DISTANCES
     MyFloat bh_mass=0;
     MyFloat bh_pos_times_mass[3]={0,0,0};
@@ -1069,9 +1033,6 @@ void force_treeupdate_pseudos(int no)
             s[0] += (Nodes[p].u.d.mass * Nodes[p].u.d.s[0]);
             s[1] += (Nodes[p].u.d.mass * Nodes[p].u.d.s[1]);
             s[2] += (Nodes[p].u.d.mass * Nodes[p].u.d.s[2]);
-#ifdef RT_USE_GRAVTREE
-            int k; for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += (Nodes[p].stellar_lum[k]);}
-#endif
 #ifdef BH_CALC_DISTANCES
             bh_mass += Nodes[p].bh_mass;
             bh_pos_times_mass[0] += Nodes[p].bh_pos[0] * Nodes[p].bh_mass;
@@ -1163,9 +1124,6 @@ void force_treeupdate_pseudos(int no)
     Extnodes[no].vs[1] = vs[1];
     Extnodes[no].vs[2] = vs[2];
     Nodes[no].u.d.mass = mass;
-#ifdef RT_USE_GRAVTREE
-    int k; for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = stellar_lum[k];}
-#endif
 #ifdef BH_CALC_DISTANCES
     Nodes[no].bh_mass = bh_mass;
     if(bh_mass > 0)
@@ -1323,12 +1281,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     double dxx, dyy, dzz, pdxx, pdyy, pdzz;
 #endif
     
-#ifdef RT_USE_GRAVTREE
-    double mass_stellarlum[N_RT_FREQ_BINS];
-    int k_freq; for(k_freq=0;k_freq<N_RT_FREQ_BINS;k_freq++) {mass_stellarlum[k_freq]=0;}
-    double dx_stellarlum=0, dy_stellarlum=0, dz_stellarlum=0, sigma_eff=0;
-    int valid_gas_particle_for_rt = 0;
-#endif
     
 #ifdef BH_CALC_DISTANCES
     double min_dist_to_bh2=1.e37;
@@ -1339,7 +1291,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #ifdef DM_SCALARFIELD_SCREENING
     double dx_dm = 0, dy_dm = 0, dz_dm = 0, mass_dm = 0;
 #endif
-#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE)
+#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE)
     double soft=0, pmass;
 #if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     double h_p_inv=0, h_p3_inv=0, u_p=0, zeta, zeta_sec=0;
@@ -1374,11 +1326,11 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
         pos_y = P[target].Pos[1];
         pos_z = P[target].Pos[2];
         ptype = P[target].Type;
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         pmass = P[target].Mass;
 #endif
         aold = All.ErrTolForceAcc * P[target].OldAcc;
-#if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL)
+#if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL)
         soft = All.ForceSoftening[ptype];
 #endif
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS)
@@ -1414,12 +1366,12 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
         pos_x = GravDataGet[target].Pos[0];
         pos_y = GravDataGet[target].Pos[1];
         pos_z = GravDataGet[target].Pos[2];
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         pmass = GravDataGet[target].Mass;
 #endif
         ptype = GravDataGet[target].Type;
         aold = All.ErrTolForceAcc * GravDataGet[target].OldAcc;
-#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE)
+#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE)
         soft = GravDataGet[target].Soft;
 #if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         zeta = GravDataGet[target].AGS_zeta;
@@ -1469,9 +1421,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     
     
     
-#ifdef RT_USE_GRAVTREE
-    if(ptype==0) {if((soft>0)&&(pmass>0)) {valid_gas_particle_for_rt = 1;}}
-#endif
     
     
     
@@ -1532,15 +1481,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif
 
                 
-#ifdef RT_USE_GRAVTREE
-                if(valid_gas_particle_for_rt)	/* we have a (valid) gas particle as target */
-                {
-                    dx_stellarlum=dx; dy_stellarlum=dy; dz_stellarlum=dz;
-                    double lum[N_RT_FREQ_BINS];
-                    int active_check = rt_get_source_luminosity(no,sigma_eff,lum);
-                    int kf; for(kf=0;kf<N_RT_FREQ_BINS;kf++) {if(active_check) {mass_stellarlum[kf]=lum[kf];} else {mass_stellarlum[kf]=0;}}
-                }
-#endif
                 
                 
 #ifdef DM_SCALARFIELD_SCREENING
@@ -1718,13 +1658,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 }
 #endif
                 
-#ifdef RT_USE_GRAVTREE
-                if(valid_gas_particle_for_rt)	/* we have a (valid) gas particle as target */
-                {
-                    int kf; for(kf=0;kf<N_RT_FREQ_BINS;kf++) {mass_stellarlum[kf] = nop->stellar_lum[kf];}
-                    dx_stellarlum = dx; dy_stellarlum = dy; dz_stellarlum = dz;
-                }
-#endif
                 
                 
 #ifdef DM_SCALARFIELD_SCREENING
@@ -1817,7 +1750,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 else		/* check relative opening criterion */
                 {
                     /* force node to open if we are within the gravitational softening length */
-#if !(defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE))
+#if !(defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE))
                     double soft = All.ForceSoftening[ptype];
 #endif
                     if((r2 < (soft+0.6*nop->len)*(soft+0.6*nop->len)) || (r2 < (nop->maxsoft+0.6*nop->len)*(nop->maxsoft+0.6*nop->len)))
@@ -2029,16 +1962,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
             ninteractions++;
             
             
-#ifdef RT_USE_GRAVTREE
-            if(valid_gas_particle_for_rt)	/* we have a (valid) gas particle as target */
-            {
-                r2 = dx_stellarlum*dx_stellarlum + dy_stellarlum*dy_stellarlum + dz_stellarlum*dz_stellarlum; r = sqrt(r2);
-                if(r >= soft) {fac=1./(r2*r);} else {h_inv=1./soft; h3_inv=h_inv*h_inv*h_inv; u=r*h_inv; fac=kernel_gravity(u,h_inv,h3_inv,1);}
-                if((soft>r)&&(soft>0)) fac *= (r2/(soft*soft)); // don't allow cross-section > r2
-                
-                
-            } // closes if(valid_gas_particle_for_rt)
-#endif // RT_USE_GRAVTREE
             
             
 #ifdef DM_SCALARFIELD_SCREENING

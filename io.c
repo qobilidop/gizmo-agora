@@ -191,7 +191,7 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
     double tcool, u;
 #endif
     
-#if (defined(OUTPUT_GDE_DISTORTIONTENSOR) || defined(OUTPUT_GDE_TIDALTENSORPS))
+#if (defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE))
     MyBigFloat half_kick_add[6][6];
     int l;
 #endif
@@ -815,49 +815,11 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             
         case IO_TIDALTENSORPS:
             /* 3x3 configuration-space tidal tensor that is driving the GDE */
-#ifdef OUTPUT_GDE_TIDALTENSORPS
-            for(n = 0; n < pc; pindex++)
-                
-                if(P[pindex].Type == type)
-                {
-                    for(k = 0; k < 3; k++)
-                    {
-                        for(l = 0; l < 3; l++)
-                        {
-                            fp[k * 3 + l] = (MyOutputFloat) P[pindex].tidal_tensorps[k][l];
-#if defined(PMGRID)
-                            fp[k * 3 + l] += (MyOutputFloat) P[pindex].tidal_tensorpsPM[k][l];
-#endif
-                            
-                        }
-                    }
-                    //fflush(stderr);
-                    n++;
-                    fp += 9;
-                }
-#endif
             break;
             
             
         case IO_GDE_DISTORTIONTENSOR:
             /* full 6D phase-space distortion tensor from GDE integration */
-#ifdef OUTPUT_GDE_DISTORTIONTENSOR
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    get_half_kick_distortion(pindex, half_kick_add);
-                    for(k = 0; k < 6; k++)
-                    {
-                        for(l = 0; l < 6; l++)
-                        {
-                            fp[k * 6 + l] = (MyOutputFloat) (P[pindex].distortion_tensorps[k][l] + half_kick_add[k][l]);
-                        }
-                    }
-                    n++;
-                    fp += 36;
-                    
-                }
-#endif
             break;
             
         case IO_CAUSTIC_COUNTER:
@@ -882,35 +844,6 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             
         case IO_LAST_CAUSTIC:
             /* extensive information on the last caustic the particle has passed */
-#ifdef OUTPUT_GDE_LASTCAUSTIC
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Time;
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Pos[0];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Pos[1];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Pos[2];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Vel[0];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Vel[1];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Vel[2];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_rho_normed_cutoff;
-                    
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Dir_x[0];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Dir_x[1];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Dir_x[2];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Dir_y[0];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Dir_y[1];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Dir_y[2];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Dir_z[0];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Dir_z[1];
-                    *fp++ = (MyOutputFloat) P[pindex].lc_Dir_z[2];
-                    
-                    *fp++ = (MyOutputFloat) P[pindex].lc_smear_x;
-                    *fp++ = (MyOutputFloat) P[pindex].lc_smear_y;
-                    *fp++ = (MyOutputFloat) P[pindex].lc_smear_z;
-                    n++;
-                }
-#endif
             break;
             
         case IO_SHEET_ORIENTATION:
@@ -2272,17 +2205,9 @@ int blockpresent(enum iofields blocknr)
                         
             
         case IO_TIDALTENSORPS:
-#ifdef OUTPUT_GDE_TIDALTENSORPS
-            return 1;
-#else
             return 0;
-#endif
         case IO_GDE_DISTORTIONTENSOR:
-#ifdef OUTPUT_GDE_DISTORTIONTENSOR
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_CAUSTIC_COUNTER:
             return 0;
@@ -2300,11 +2225,7 @@ int blockpresent(enum iofields blocknr)
             return 0;
             
         case IO_LAST_CAUSTIC:
-#ifdef OUTPUT_GDE_LASTCAUSTIC
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_SHEET_ORIENTATION:
             return 0;
