@@ -261,6 +261,12 @@ void pmforce_periodic(int mode, int *typelist)
   d_fftw_real *localfield_d_data, *import_d_data;
   fftw_real *localfield_data, *import_data;
 
+#ifdef DM_SCALARFIELD_SCREENING
+  int phase;
+  double kscreening2;
+
+  kscreening2 = pow(All.BoxSize / All.ScalarScreeningLength / (2 * M_PI), 2);
+#endif
  
   if(ThisTask == 0)
     {
@@ -283,6 +289,10 @@ void pmforce_periodic(int mode, int *typelist)
 
   pm_init_periodic_allocate();
 
+#ifdef DM_SCALARFIELD_SCREENING
+  for(phase = 0; phase < 2; phase++)
+    {
+#endif
 
       /* determine the cells each particles accesses */
       for(i = 0, num_on_grid = 0; i < NumPart; i++)
@@ -294,6 +304,11 @@ void pmforce_periodic(int mode, int *typelist)
 		continue;
 	    }
 
+#ifdef DM_SCALARFIELD_SCREENING
+	  if(phase == 1)
+	    if(P[i].Type == 0)	/* don't bin baryonic mass in this phase */
+	      continue;
+#endif
 
         /* possible bugfix: Y.Feng:  (was if(mode)) */
 	  if(mode > -1)
@@ -558,6 +573,11 @@ void pmforce_periodic(int mode, int *typelist)
 
 		  if(k2 > 0)
 		    {
+#ifdef DM_SCALARFIELD_SCREENING
+		      if(phase == 1)
+			smth = -All.ScalarBeta * exp(-k2 * asmth2) / (k2 + kscreening2);
+		      else
+#endif
 			smth = -exp(-k2 * asmth2) / k2;
 
 		      /* do deconvolution */
@@ -848,6 +868,11 @@ void pmforce_periodic(int mode, int *typelist)
 
 	      for(i = 0, j = 0; i < NumPart; i++)
 		{
+#ifdef DM_SCALARFIELD_SCREENING
+		  if(phase == 1)
+		    if(P[i].Type == 0)	/* baryons don't get an extra scalar force */
+		      continue;
+#endif
             while(j < num_on_grid && (part[j].partindex >> 3) != i)
                 j++;
 
@@ -889,6 +914,9 @@ void pmforce_periodic(int mode, int *typelist)
       myfree(localfield_first);
       myfree(localfield_d_data);
       myfree(localfield_globalindex);
+#ifdef DM_SCALARFIELD_SCREENING
+    }
+#endif
 
   pm_init_periodic_free();
 }
@@ -1649,6 +1677,12 @@ void pmtidaltensor_periodic_diff(void)
   d_fftw_real *localfield_d_data, *import_d_data;
   fftw_real *localfield_data, *import_data;
 
+#ifdef DM_SCALARFIELD_SCREENING
+  int phase;
+  double kscreening2;
+
+  kscreening2 = pow(All.BoxSize / All.ScalarScreeningLength / (2 * M_PI), 2);
+#endif
  
 #ifndef IO_REDUCED_MODE
   if(ThisTask == 0)
@@ -1667,10 +1701,19 @@ void pmtidaltensor_periodic_diff(void)
 
   pm_init_periodic_allocate();
 
+#ifdef DM_SCALARFIELD_SCREENING
+  for(phase = 0; phase < 2; phase++)
+    {
+#endif
 
       /* determine the cells each particles accesses */
       for(i = 0, num_on_grid = 0; i < NumPart; i++)
 	{
+#ifdef DM_SCALARFIELD_SCREENING
+	  if(phase == 1)
+	    if(P[i].Type == 0)	/* don't bin baryonic mass in this phase */
+	      continue;
+#endif
 
         /* possible bugfix: Y.Feng:  (otherwise just pp[xx]=Pos[xx]) */
         /* make sure that particles are properly box-wrapped */
@@ -1951,6 +1994,11 @@ void pmtidaltensor_periodic_diff(void)
 
 	      if(k2 > 0)
 		{
+#ifdef DM_SCALARFIELD_SCREENING
+		  if(phase == 1)
+		    smth = -All.ScalarBeta * exp(-k2 * asmth2) / (k2 + kscreening2);
+		  else
+#endif
 		    smth = -exp(-k2 * asmth2) / k2;
 
 		  /* do deconvolution */
@@ -2308,6 +2356,11 @@ void pmtidaltensor_periodic_diff(void)
 
 	  for(i = 0, j = 0; i < NumPart; i++)
 	    {
+#ifdef DM_SCALARFIELD_SCREENING
+	      if(phase == 1)
+		if(P[i].Type == 0)	/* baryons don't get an extra scalar force */
+		  continue;
+#endif
 	      while(j < num_on_grid && (part[j].partindex >> 3) != i)
 		j++;
 
@@ -2372,6 +2425,9 @@ void pmtidaltensor_periodic_diff(void)
       myfree(localfield_first);
       myfree(localfield_d_data);
       myfree(localfield_globalindex);
+#ifdef DM_SCALARFIELD_SCREENING
+    }
+#endif
 
   pm_init_periodic_free();
 #ifndef IO_REDUCED_MODE

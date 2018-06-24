@@ -364,6 +364,13 @@ int hydro_evaluate(int target, int mode, int *exportflag, int *exportnodecount, 
 #endif
                 
                 
+#ifdef RT_DIFFUSION_EXPLICIT
+#if defined(RT_EVOLVE_INTENSITIES)
+#include "../radiation/rt_direct_ray_transport.h"
+#else
+#include "../radiation/rt_diffusion_explicit.h"
+#endif
+#endif
                 
                 
                 /* --------------------------------------------------------------------------------- */

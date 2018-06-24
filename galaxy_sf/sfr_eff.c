@@ -10,7 +10,7 @@
 #include "../proto.h"
 
 /*!
- *  routines for star formation in cosmological simulations
+ *  routines for star formation in cosmological/galaxy/single-star/black hole simulations
  */
 /*
  * This file is largely written by Phil Hopkins (phopkins@caltech.edu) for GIZMO.
@@ -22,14 +22,12 @@
 
 #ifdef GALSF // master switch for compiling the routines below //
 
-#define WindInitialVelocityBoost 1.0 // (optional) boost velocity coupled (fixed momentum)
 
 #if defined(GALSF_SFR_IMF_VARIATION) || defined(GALSF_SFR_IMF_SAMPLING)
 /* function to determine what the IMF of a new star particle will be, based 
     on the gas properties of the particle out of which it forms */
 void assign_imf_properties_from_starforming_gas(int i)
 {
-    
 #ifdef GALSF_SFR_IMF_VARIATION
     double h = Get_Particle_Size(i) * All.cf_atime;
     double cs = Particle_effective_soundspeed_i(i) * All.cf_afac3; // actual sound speed in the simulation: might be unphysically high for SF conditions!
@@ -99,7 +97,6 @@ void assign_imf_properties_from_starforming_gas(int i)
     
 #endif 
     
-    
 #ifdef GALSF_SFR_IMF_SAMPLING
     gsl_rng *random_generator_for_massivestars;
     random_generator_for_massivestars = gsl_rng_alloc(gsl_rng_ranlxd1);
@@ -108,34 +105,9 @@ void assign_imf_properties_from_starforming_gas(int i)
     unsigned int kk = gsl_ran_poisson(random_generator_for_massivestars, mu);
     P[i].IMF_NumMassiveStars = (double)kk;
 #endif
-    
 }
 #endif
 
-
-/* return the light-to-mass ratio, for the IMF of a given particle, relative to the Chabrier/Kroupa IMF which 
-    is otherwise (for all purposes) our 'default' choice */
-double calculate_relative_light_to_mass_ratio_from_imf(int i)
-{
-#ifdef SINGLE_STAR_FORMATION
-    double unit_lsun_msun = (All.UnitEnergy_in_cgs / (All.UnitTime_in_s * SOLAR_LUM)) / (All.UnitMass_in_g / (All.HubbleParam * SOLAR_MASS));
-    return bh_lum_bol(0, P[i].Mass, i) / P[i].Mass * unit_lsun_msun;
-#endif
-#ifdef GALSF_SFR_IMF_VARIATION
-    /* more accurate version from David Guszejnov's IMF calculations (ok for Mturnover in range 0.01-100) */
-    double log_mimf = log10(P[i].IMF_Mturnover);
-    return (0.051+0.042*(log_mimf+2)+0.031*(log_mimf+2)*(log_mimf+2)) / 0.31;
-    // return pow(P[i].IMF_Mturnover/1.0,0.35);
-#endif
-#ifdef GALSF_SFR_IMF_SAMPLING
-    double mu = 0.01 * P[i].Mass * All.UnitMass_in_g / All.HubbleParam / (1.989e33); // 1 O-star per 100 Msun
-    double age = evaluate_stellar_age_Gyr(P[i].StellarAge);
-    if(age > 0.003) {mu *= 0.326 * (0.003 / age);} // expectation value is declining with time, so 'effective multiplier' is larger
-    return P[i].IMF_NumMassiveStars / mu;
-#endif
-    return 1; // Chabrier or Kroupa IMF //
-    // return 0.5; // Salpeter IMF down to 0.1 solar //
-}
 
 
 /* return the stellar age in Gyr for a given labeled age, needed throughout for stellar feedback */
@@ -171,43 +143,32 @@ double evaluate_stellar_age_Gyr(double stellar_tform)
 }
 
 
-/* return the (solar-scaled) light-to-mass ratio of an SSP with a given age; used throughout */
-double evaluate_l_over_m_ssp(double stellar_age_in_gyr)
+
+/* simple routine to determine density thresholds and other common units for SF routines */
+void set_units_sfr(void)
 {
-#ifdef SINGLE_STAR_FORMATION
-    return 1;
-#endif
-    // original SB99 tracks
-    /*
-    if(stellar_age_in_gyr < 0.0029)
-    {
-        return 1136.59;
-    } else {
-        double log_age = log10(stellar_age_in_gyr)-(-2.2681);
-        return 478.63*pow(10.,-1.3625*log_age+0.115765*log_age*log_age);
-        // could replace with piecewise linear functions; if this call in forcetree gets expensive //
-    }
-    */
-    // updated SB99 tracks: including rotation, new mass-loss tracks, etc.
-    if(stellar_age_in_gyr < 0.0035)
-    {
-        return 1136.59;
-    } else {
-        double log_age = log10(stellar_age_in_gyr/0.0035);
-        return 1500.*pow(10.,-1.8*log_age+0.3*log_age*log_age-0.025*log_age*log_age*log_age);
-    }
-    return 0;
+    All.OverDensThresh = All.CritOverDensity * All.OmegaBaryon * 3 * All.Hubble_H0_CodeUnits * All.Hubble_H0_CodeUnits / (8 * M_PI * All.G);
+    All.PhysDensThresh = All.CritPhysDensity * PROTONMASS / (HYDROGEN_MASSFRAC * All.UnitDensity_in_cgs * All.HubbleParam*All.HubbleParam);
+#ifdef GALSF_EFFECTIVE_EQS
+    double meanweight = 4 / (1 + 3 * HYDROGEN_MASSFRAC);	/* note: assuming NEUTRAL GAS */
+    All.EgySpecCold = 1 / meanweight * (1.0 / GAMMA_MINUS1) * (BOLTZMANN / PROTONMASS) * All.TempClouds;
+    All.EgySpecCold *= All.UnitMass_in_g / All.UnitEnergy_in_cgs;
+    meanweight = 4 / (8 - 5 * (1 - HYDROGEN_MASSFRAC));	/* note: assuming FULL ionization */
+    All.EgySpecSN = 1 / meanweight * (1.0 / GAMMA_MINUS1) * (BOLTZMANN / PROTONMASS) * All.TempSupernova;
+    All.EgySpecSN *= All.UnitMass_in_g / All.UnitEnergy_in_cgs;
+#endif // GALSF_EFFECTIVE_EQS
 }
 
 
-#ifdef BH_SEED_FROM_LOCALGAS
+
 /* function which takes properties of a gas particle 'i' and returns probability of its turning into a BH seed particle */
 double return_probability_of_this_forming_bh_from_seed_model(int i)
 {
     double p=0;
+#ifdef BH_SEED_FROM_LOCALGAS
     if(All.Time < 1.0/(1.0+All.SeedBlackHoleMinRedshift)) /* within the allowed redshift range for forming seeds */
-        if(SphP[i].Density*All.cf_a3inv > All.PhysDensThresh) /* require it be above the SF density threshold */
-            if(P[i].Metallicity[0]/All.SolarAbundances[0] < 0.1) /* and below some metallicity */
+    if(SphP[i].Density*All.cf_a3inv > All.PhysDensThresh) /* require it be above the SF density threshold */
+    if(P[i].Metallicity[0]/All.SolarAbundances[0] < 0.1) /* and below some metallicity */
     {
         double GradRho = evaluate_NH_from_GradRho(P[i].GradRho,PPP[i].Hsml,SphP[i].Density,PPP[i].NumNgb,1) * All.UnitDensity_in_cgs * All.UnitLength_in_cm * All.HubbleParam; /* this gives the Sobolev-estimated column density */
         /* surface dens in g/cm^2; threshold for bound cluster formation in our experiments is ~2 g/cm^2 (10^4 M_sun/pc^2) */
@@ -220,26 +181,10 @@ double return_probability_of_this_forming_bh_from_seed_model(int i)
             /* want to add factors to control this probability in zoom-in runs */
         }
     }
+#endif
     return p;
 }
-#endif
 
-
-/* simple routine to determine density thresholds and other common units for SF routines */
-void set_units_sfr(void)
-{
-    All.OverDensThresh = All.CritOverDensity * All.OmegaBaryon * 3 * All.Hubble_H0_CodeUnits * All.Hubble_H0_CodeUnits / (8 * M_PI * All.G);
-    All.PhysDensThresh = All.CritPhysDensity * PROTONMASS / (HYDROGEN_MASSFRAC * All.UnitDensity_in_cgs * All.HubbleParam*All.HubbleParam);
-    
-#ifdef GALSF_EFFECTIVE_EQS
-    double meanweight = 4 / (1 + 3 * HYDROGEN_MASSFRAC);	/* note: assuming NEUTRAL GAS */
-    All.EgySpecCold = 1 / meanweight * (1.0 / GAMMA_MINUS1) * (BOLTZMANN / PROTONMASS) * All.TempClouds;
-    All.EgySpecCold *= All.UnitMass_in_g / All.UnitEnergy_in_cgs;
-    meanweight = 4 / (8 - 5 * (1 - HYDROGEN_MASSFRAC));	/* note: assuming FULL ionization */
-    All.EgySpecSN = 1 / meanweight * (1.0 / GAMMA_MINUS1) * (BOLTZMANN / PROTONMASS) * All.TempSupernova;
-    All.EgySpecSN *= All.UnitMass_in_g / All.UnitEnergy_in_cgs;
-#endif // GALSF_EFFECTIVE_EQS
-}
 
 
 /* Routine to actually determine the SFR assigned to an individual gas particle at each time */
@@ -639,7 +584,7 @@ void star_formation_parent_routine(void)
 #endif
         } // closes check of flag==0 for star-formation operation
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_SUBGRID_WINDS)
+#if defined(GALSF_SUBGRID_WINDS)
         if( (flag==0 || All.ComovingIntegrationOn==0) &&
            (P[i].Mass>0) && (P[i].Type==0) && (dtime>0) && (All.Time>0) )
         {
@@ -650,7 +595,6 @@ void star_formation_parent_routine(void)
 
 	} /* End of If Type = 0 */
     } /* end of main loop over active particles, huzzah! */
-
 
 
 
@@ -720,16 +664,11 @@ void star_formation_parent_routine(void)
 
 
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_SUBGRID_WINDS)
+#if defined(GALSF_SUBGRID_WINDS)
 void assign_wind_kick_from_sf_routine(int i, double sm, double dtime, double pvtau_return[4])
 {
-    int j;
-    double v,p,prob;
-    double norm, dir[3];
-
+    int j; double v,p,prob, norm, dir[3];
     
-#ifdef GALSF_SUBGRID_WINDS
-
 #if (GALSF_SUBGRID_WIND_SCALING == 0)
     /* this is the simple, old standard wind model, with constant velocity & loading with SFR */
     p = All.WindEfficiency * sm / P[i].Mass;
@@ -790,21 +729,10 @@ void assign_wind_kick_from_sf_routine(int i, double sm, double dtime, double pvt
     prob = 1 - exp(-p);
 #endif
     
-#endif // GALSF_SUBGRID_WINDS
-    
-    
-    
-    
-    
-    
     if(get_random_number(P[i].ID + 2) < prob)	/* ok, make the particle go into the wind */
     {
-        
-        
-        // determine the wind acceleration orientation //
-    
-#if !defined(GALSF_WINDS_ORIENTATION) && !defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
-#define GALSF_WINDS_ORIENTATION 0
+#if !defined(GALSF_WINDS_ORIENTATION)
+#define GALSF_WINDS_ORIENTATION 0   // determine the wind acceleration orientation //
 #endif
         
 #if (GALSF_WINDS_ORIENTATION==0) // random wind direction
@@ -813,12 +741,14 @@ void assign_wind_kick_from_sf_routine(int i, double sm, double dtime, double pvt
         dir[0] = sin(theta) * cos(phi); dir[1] = sin(theta) * sin(phi); dir[2] = cos(theta);
         if(get_random_number(P[i].ID + 5) < 0.5) {for(j=0;j<3;j++) dir[j]=-dir[j];}
 #endif
+#if (GALSF_WINDS_ORIENTATION==1) // polar wind (defined by accel.cross.vel)
         dir[0] = P[i].GravAccel[1] * P[i].Vel[2] - P[i].GravAccel[2] * P[i].Vel[1];
         dir[1] = P[i].GravAccel[2] * P[i].Vel[0] - P[i].GravAccel[0] * P[i].Vel[2];
         dir[2] = P[i].GravAccel[0] * P[i].Vel[1] - P[i].GravAccel[1] * P[i].Vel[0];
         if(get_random_number(P[i].ID + 5) < 0.5) {for(j=0;j<3;j++) dir[j]=-dir[j];}
-#if (GALSF_WINDS_ORIENTATION==2)
-        for(j=0;j<3;j++) dir[j]=-P[i].GradRho[j]; // along density gradient //
+#endif
+#if (GALSF_WINDS_ORIENTATION==2) // along density gradient //
+        for(j=0;j<3;j++) dir[j]=-P[i].GradRho[j];
 #endif
         
         // now actually do the kick for the wind //
@@ -829,12 +759,10 @@ void assign_wind_kick_from_sf_routine(int i, double sm, double dtime, double pvt
             P[i].Vel[j] += v * All.cf_atime * dir[j]/norm;
             SphP[i].VelPred[j] += v * All.cf_atime * dir[j]/norm;
         }
-#ifdef GALSF_SUBGRID_WINDS
             SphP[i].DelayTime = All.WindFreeTravelMaxTimeFactor / All.cf_hubble_a;
-#endif
     } /* if(get_random_number(P[i].ID + 2) < prob) */
 }
-#endif // defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_SUBGRID_WINDS)
+#endif // defined(GALSF_SUBGRID_WINDS)
 
 
 
@@ -937,11 +865,8 @@ void init_clouds(void)
 	  IonizeParams();
 	}
 
-#ifdef WINDS
-      if(All.WindEfficiency > 0)
-	if(ThisTask == 0)
-	  printf("Windspeed: %g\n",
-		 sqrt(2 * All.WindEnergyFraction * All.FactorSN * All.EgySpecSN / (1 - All.FactorSN) / All.WindEfficiency));
+#if defined(GALSF_SUBGRID_WINDS)
+        if(All.WindEfficiency > 0) {if(ThisTask == 0) {printf("Windspeed: %g\n", sqrt(2 * All.WindEnergyFraction * All.FactorSN * All.EgySpecSN / (1 - All.FactorSN) / All.WindEfficiency));}}
 #endif
     }
 }

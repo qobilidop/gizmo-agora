@@ -514,6 +514,9 @@ void force_update_node_recursive(int no, int sib, int father)
     MyFloat s[3], vs[3], mass;
     struct particle_data *pa;
     
+#ifdef DM_SCALARFIELD_SCREENING
+    MyFloat s_dm[3], vs_dm[3], mass_dm;
+#endif
 #ifdef RT_USE_GRAVTREE
     MyFloat stellar_lum[N_RT_FREQ_BINS], sigma_eff=0;
     for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
@@ -546,6 +549,12 @@ void force_update_node_recursive(int no, int sib, int father)
 #ifdef BH_CALC_DISTANCES
         MyFloat bh_mass=0;
         MyFloat bh_pos_times_mass[3]={0,0,0};   /* position of each black hole in the node times its mass; divide by total mass at the end to get COM */
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+        mass_dm = 0;
+        s_dm[0] = vs_dm[0] = 0;
+        s_dm[1] = vs_dm[1] = 0;
+        s_dm[2] = vs_dm[2] = 0;
 #endif
         mass = 0;
         s[0] = 0;
@@ -602,6 +611,15 @@ void force_update_node_recursive(int no, int sib, int father)
                         bh_pos_times_mass[0] += Nodes[p].bh_pos[0] * Nodes[p].bh_mass;
                         bh_pos_times_mass[1] += Nodes[p].bh_pos[1] * Nodes[p].bh_mass;
                         bh_pos_times_mass[2] += Nodes[p].bh_pos[2] * Nodes[p].bh_mass;
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+                        mass_dm += (Nodes[p].mass_dm);
+                        s_dm[0] += (Nodes[p].mass_dm * Nodes[p].s_dm[0]);
+                        s_dm[1] += (Nodes[p].mass_dm * Nodes[p].s_dm[1]);
+                        s_dm[2] += (Nodes[p].mass_dm * Nodes[p].s_dm[2]);
+                        vs_dm[0] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[0]);
+                        vs_dm[1] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[1]);
+                        vs_dm[2] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[2]);
 #endif
                         if(Nodes[p].u.d.mass > 0)
                         {
@@ -661,6 +679,18 @@ void force_update_node_recursive(int no, int sib, int father)
 #endif
                     
                     
+#ifdef DM_SCALARFIELD_SCREENING
+                    if(pa->Type != 0)
+                    {
+                        mass_dm += (pa->Mass);
+                        s_dm[0] += (pa->Mass * pa->Pos[0]);
+                        s_dm[1] += (pa->Mass * pa->Pos[1]);
+                        s_dm[2] += (pa->Mass * pa->Pos[2]);
+                        vs_dm[0] += (pa->Mass * pa->Vel[0]);
+                        vs_dm[1] += (pa->Mass * pa->Vel[1]);
+                        vs_dm[2] += (pa->Mass * pa->Vel[2]);
+                    }
+#endif
                     if(pa->Type == 0)
                     {
                         if(PPP[p].Hsml > hmax)
@@ -720,6 +750,26 @@ void force_update_node_recursive(int no, int sib, int father)
             vs[2] = 0;
         }
         
+#ifdef DM_SCALARFIELD_SCREENING
+        if(mass_dm)
+        {
+            s_dm[0] /= mass_dm;
+            s_dm[1] /= mass_dm;
+            s_dm[2] /= mass_dm;
+            vs_dm[0] /= mass_dm;
+            vs_dm[1] /= mass_dm;
+            vs_dm[2] /= mass_dm;
+        }
+        else
+        {
+            s_dm[0] = Nodes[no].center[0];
+            s_dm[1] = Nodes[no].center[1];
+            s_dm[2] = Nodes[no].center[2];
+            vs_dm[0] = 0;
+            vs_dm[1] = 0;
+            vs_dm[2] = 0;
+        }
+#endif
         
         
         Nodes[no].Ti_current = All.Ti_Current;
@@ -739,6 +789,18 @@ void force_update_node_recursive(int no, int sib, int father)
                 Nodes[no].bh_pos[1] = bh_pos_times_mass[1] / bh_mass;
                 Nodes[no].bh_pos[2] = bh_pos_times_mass[2] / bh_mass;
             }
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+        Nodes[no].s_dm[0] = s_dm[0];
+        Nodes[no].s_dm[1] = s_dm[1];
+        Nodes[no].s_dm[2] = s_dm[2];
+        Nodes[no].mass_dm = mass_dm;
+        Extnodes[no].vs_dm[0] = vs_dm[0];
+        Extnodes[no].vs_dm[1] = vs_dm[1];
+        Extnodes[no].vs_dm[2] = vs_dm[2];
+        Extnodes[no].dp_dm[0] = 0;
+        Extnodes[no].dp_dm[1] = 0;
+        Extnodes[no].dp_dm[2] = 0;
 #endif
         
         Extnodes[no].Ti_lastkicked = All.Ti_Current;
@@ -814,6 +876,11 @@ void force_exchange_pseudodata(void)
         MyFloat bh_mass;
         MyFloat bh_pos[3];
 #endif
+#ifdef DM_SCALARFIELD_SCREENING
+        MyFloat s_dm[3];
+        MyFloat vs_dm[3];
+        MyFloat mass_dm;
+#endif
         unsigned int bitflags;
 #ifdef PAD_STRUCTURES
 #ifndef DOUBLEPRECISION
@@ -862,6 +929,15 @@ void force_exchange_pseudodata(void)
             DomainMoment[i].bh_pos[0] = Nodes[no].bh_pos[0];
             DomainMoment[i].bh_pos[1] = Nodes[no].bh_pos[1];
             DomainMoment[i].bh_pos[2] = Nodes[no].bh_pos[2];
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+            DomainMoment[i].s_dm[0] = Nodes[no].s_dm[0];
+            DomainMoment[i].s_dm[1] = Nodes[no].s_dm[1];
+            DomainMoment[i].s_dm[2] = Nodes[no].s_dm[2];
+            DomainMoment[i].mass_dm = Nodes[no].mass_dm;
+            DomainMoment[i].vs_dm[0] = Extnodes[no].vs_dm[0];
+            DomainMoment[i].vs_dm[1] = Extnodes[no].vs_dm[1];
+            DomainMoment[i].vs_dm[2] = Extnodes[no].vs_dm[2];
 #endif
         }
     
@@ -922,6 +998,15 @@ void force_exchange_pseudodata(void)
                     Nodes[no].bh_pos[1] = DomainMoment[i].bh_pos[1];
                     Nodes[no].bh_pos[2] = DomainMoment[i].bh_pos[2];
 #endif
+#ifdef DM_SCALARFIELD_SCREENING
+                    Nodes[no].s_dm[0] = DomainMoment[i].s_dm[0];
+                    Nodes[no].s_dm[1] = DomainMoment[i].s_dm[1];
+                    Nodes[no].s_dm[2] = DomainMoment[i].s_dm[2];
+                    Nodes[no].mass_dm = DomainMoment[i].mass_dm;
+                    Extnodes[no].vs_dm[0] = DomainMoment[i].vs_dm[0];
+                    Extnodes[no].vs_dm[1] = DomainMoment[i].vs_dm[1];
+                    Extnodes[no].vs_dm[2] = DomainMoment[i].vs_dm[2];
+#endif
                 }
     
     myfree(DomainMoment);
@@ -942,6 +1027,9 @@ void force_treeupdate_pseudos(int no)
 #ifdef RT_USE_GRAVTREE
     MyFloat stellar_lum[N_RT_FREQ_BINS];
 #endif
+#ifdef DM_SCALARFIELD_SCREENING
+    MyFloat s_dm[3], vs_dm[3], mass_dm;
+#endif
     
     MyFloat maxsoft;
     
@@ -951,6 +1039,12 @@ void force_treeupdate_pseudos(int no)
 #ifdef BH_CALC_DISTANCES
     MyFloat bh_mass=0;
     MyFloat bh_pos_times_mass[3]={0,0,0};
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+    mass_dm = 0;
+    s_dm[0] = vs_dm[0] = 0;
+    s_dm[1] = vs_dm[1] = 0;
+    s_dm[2] = vs_dm[2] = 0;
 #endif
     mass = 0;
     s[0] = 0;
@@ -986,6 +1080,15 @@ void force_treeupdate_pseudos(int no)
             bh_pos_times_mass[0] += Nodes[p].bh_pos[0] * Nodes[p].bh_mass;
             bh_pos_times_mass[1] += Nodes[p].bh_pos[1] * Nodes[p].bh_mass;
             bh_pos_times_mass[2] += Nodes[p].bh_pos[2] * Nodes[p].bh_mass;
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+            mass_dm += (Nodes[p].mass_dm);
+            s_dm[0] += (Nodes[p].mass_dm * Nodes[p].s_dm[0]);
+            s_dm[1] += (Nodes[p].mass_dm * Nodes[p].s_dm[1]);
+            s_dm[2] += (Nodes[p].mass_dm * Nodes[p].s_dm[2]);
+            vs_dm[0] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[0]);
+            vs_dm[1] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[1]);
+            vs_dm[2] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[2]);
 #endif
             vs[0] += (Nodes[p].u.d.mass * Extnodes[p].vs[0]);
             vs[1] += (Nodes[p].u.d.mass * Extnodes[p].vs[1]);
@@ -1034,6 +1137,26 @@ void force_treeupdate_pseudos(int no)
         vs[2] = 0;
     }
     
+#ifdef DM_SCALARFIELD_SCREENING
+    if(mass_dm)
+    {
+        s_dm[0] /= mass_dm;
+        s_dm[1] /= mass_dm;
+        s_dm[2] /= mass_dm;
+        vs_dm[0] /= mass_dm;
+        vs_dm[1] /= mass_dm;
+        vs_dm[2] /= mass_dm;
+    }
+    else
+    {
+        s_dm[0] = Nodes[no].center[0];
+        s_dm[1] = Nodes[no].center[1];
+        s_dm[2] = Nodes[no].center[2];
+        vs_dm[0] = 0;
+        vs_dm[1] = 0;
+        vs_dm[2] = 0;
+    }
+#endif
     
     
     Nodes[no].u.d.s[0] = s[0];
@@ -1054,6 +1177,15 @@ void force_treeupdate_pseudos(int no)
             Nodes[no].bh_pos[1] = bh_pos_times_mass[1] / bh_mass;
             Nodes[no].bh_pos[2] = bh_pos_times_mass[2] / bh_mass;
         }
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+    Nodes[no].s_dm[0] = s_dm[0];
+    Nodes[no].s_dm[1] = s_dm[1];
+    Nodes[no].s_dm[2] = s_dm[2];
+    Nodes[no].mass_dm = mass_dm;
+    Extnodes[no].vs_dm[0] = vs_dm[0];
+    Extnodes[no].vs_dm[1] = vs_dm[1];
+    Extnodes[no].vs_dm[2] = vs_dm[2];
 #endif
     
     Extnodes[no].hmax = hmax;
@@ -1212,6 +1344,9 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif
     
     
+#ifdef DM_SCALARFIELD_SCREENING
+    double dx_dm = 0, dy_dm = 0, dz_dm = 0, mass_dm = 0;
+#endif
 #if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE)
     double soft=0, pmass;
 #if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
@@ -1428,6 +1563,23 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif
                 
                 
+#ifdef DM_SCALARFIELD_SCREENING
+                if(ptype != 0)	/* we have a dark matter particle as target */
+                {
+                    if(P[no].Type == 1)
+                    {
+                        dx_dm = dx;
+                        dy_dm = dy;
+                        dz_dm = dz;
+                        mass_dm = mass;
+                    }
+                    else
+                    {
+                        mass_dm = 0;
+                        dx_dm = dy_dm = dz_dm = 0;
+                    }
+                }
+#endif
                 
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
                 /* set secondary softening and zeta term */
@@ -1595,6 +1747,20 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif
                 
                 
+#ifdef DM_SCALARFIELD_SCREENING
+                if(ptype != 0)	/* we have a dark matter particle as target */
+                {
+                    dx_dm = nop->s_dm[0] - pos_x;
+                    dy_dm = nop->s_dm[1] - pos_y;
+                    dz_dm = nop->s_dm[2] - pos_z;
+                    mass_dm = nop->mass_dm;
+                }
+                else
+                {
+                    mass_dm = 0;
+                    dx_dm = dy_dm = dz_dm = 0;
+                }
+#endif
                 
 #ifdef PMGRID
 #ifdef REDUCE_TREEWALK_BRANCHING
@@ -1946,6 +2112,39 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif // RT_USE_GRAVTREE
             
             
+#ifdef DM_SCALARFIELD_SCREENING
+            if(ptype != 0)	/* we have a dark matter particle as target */
+            {
+#if defined(BOX_PERIODIC) && !defined(GRAVITY_NOT_PERIODIC)
+                NEAREST_XYZ(dx_dm,dy_dm,dz_dm,-1);
+#endif
+                r2 = dx_dm * dx_dm + dy_dm * dy_dm + dz_dm * dz_dm;
+                r = sqrt(r2);
+                if(r >= h)
+                    fac = mass_dm / (r2 * r);
+                else
+                {
+                    h_inv = 1.0 / h;
+                    h3_inv = h_inv * h_inv * h_inv;
+                    u = r * h_inv;
+                    fac = mass_dm * kernel_gravity(u, h_inv, h3_inv, 1);
+                }
+                /* assemble force with strength, screening length, and target charge.  */
+                fac *= All.ScalarBeta * (1 + r / All.ScalarScreeningLength) * exp(-r / All.ScalarScreeningLength);
+#ifdef PMGRID
+                tabindex = (int) (asmthfac * r);
+                if(tabindex < NTAB && tabindex >= 0)
+#endif
+                {
+#ifdef PMGRID
+                    fac *= shortrange_table[tabindex];
+#endif
+                    acc_x += FLT(dx_dm * fac);
+                    acc_y += FLT(dy_dm * fac);
+                    acc_z += FLT(dz_dm * fac);
+                }
+            } // closes if(ptype != 0)
+#endif // DM_SCALARFIELD_SCREENING //
                 
         } // closes (if((r2 > 0) && (mass > 0))) check
             
@@ -2486,8 +2685,10 @@ int force_treeevaluate_potential(int target, int mode, int *nexport, int *nsend_
             {
                 /* the index of the node is the index of the particle */
                 /* observe the sign  */
+#ifndef FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_AND_POTENTIAL
                 if(P[no].Ti_current != All.Ti_Current)
                     drift_particle(no, All.Ti_Current);
+#endif
                 dx = P[no].Pos[0] - pos_x;
                 dy = P[no].Pos[1] - pos_y;
                 dz = P[no].Pos[2] - pos_z;
@@ -2552,8 +2753,10 @@ int force_treeevaluate_potential(int target, int mode, int *nexport, int *nsend_
                     no = nop->u.d.nextnode;
                     continue;
                 }
+#ifndef FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_AND_POTENTIAL
                 if(nop->Ti_current != All.Ti_Current)
                     force_drift_node(no, All.Ti_Current);
+#endif
                 mass = nop->u.d.mass;
                 dx = nop->u.d.s[0] - pos_x;
                 dy = nop->u.d.s[1] - pos_y;

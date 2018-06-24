@@ -191,10 +191,6 @@ void drift_particle(int i, integertime time1)
             for(j = 0; j < 3; j++)
                 SphP[i].VelPred[j] += SphP[i].TurbAccel[j] * dt_gravkick;
 #endif
-#ifdef RT_RAD_PRESSURE_OUTPUT
-            for(j = 0; j < 3; j++)
-                SphP[i].VelPred[j] += SphP[i].RadAccel[j] * All.cf_atime * dt_hydrokick;
-#endif
             
 #ifdef HYDRO_MESHLESS_FINITE_VOLUME
             P[i].Mass = DMAX(P[i].Mass + SphP[i].DtMass * dt_entr, 0.5 * SphP[i].MassTrue);

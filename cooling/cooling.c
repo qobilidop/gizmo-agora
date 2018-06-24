@@ -121,13 +121,8 @@ void do_the_cooling_for_particle(int i)
 #endif
         
         
-#ifndef FLAG_NOT_IN_PUBLIC_CODE_OLDFORMAT
         /* Call the actual COOLING subroutine! */
         unew = DoCooling(uold, SphP[i].Density * All.cf_a3inv, dtime, SphP[i].Ne, i);
-#else
-        double fac_entr_to_u = pow(SphP[i].Density * All.cf_a3inv, GAMMA_MINUS1) / GAMMA_MINUS1;
-        unew = uold + dt * fac_entr_to_u * (rt_DoHeating(i, dt) + rt_DoCooling(i, dt));
-#endif
         
         
         

@@ -107,6 +107,9 @@ void run(void)
 #endif
 
         /* flag particles which will be feedback centers, so kernel lengths can be computed for them */
+#ifdef GALSF_FB_MECHANICAL
+        determine_where_SNe_occur(); // for mechanical FB models
+#endif
 #ifdef GALSF_FB_THERMAL
         determine_where_addthermalFB_events_occur(); // (same, but for simple thermal feedback models)
 #endif
@@ -268,6 +271,9 @@ void calculate_non_standard_physics(void)
     CPU_Step[CPU_COOLINGSFR] += measure_time(); // finish time calc for SFR+cooling
 #endif
         
+#ifdef SCF_HYBRID
+    SCF_do_center_of_mass_correction(0.75, 10.0 * SCF_HQ_A, 0.01, 1000);
+#endif
 }
 
 
@@ -283,6 +289,9 @@ void compute_statistics(void)
 #endif
 #ifndef IO_REDUCED_MODE
         energy_statistics();	/* compute and output energy statistics */
+#endif
+#ifdef SCF_POTENTIAL
+        SCF_write(0);
 #endif
         
         All.TimeLastStatistics += All.TimeBetStatistics;
@@ -873,8 +882,7 @@ void write_cpu_log(void)
 #ifdef GRAIN_FLUID
           "grains        %10.2f  %5.1f%%\n"
 #endif
-          "gas_return    %10.2f  %5.1f%%\n"
-          "snII_fb_loop  %10.2f  %5.1f%%\n"
+          "mech_fb_loop  %10.2f  %5.1f%%\n"
           "hII_fb_loop   %10.2f  %5.1f%%\n"
           "localwindkik  %10.2f  %5.1f%%\n"
           "misc          %10.2f  %5.1f%%\n",
@@ -938,7 +946,6 @@ void write_cpu_log(void)
 #ifdef GRAIN_FLUID
     All.CPU_Sum[CPU_DRAGFORCE], (All.CPU_Sum[CPU_DRAGFORCE]) / All.CPU_Sum[CPU_ALL] * 100,
 #endif
-    All.CPU_Sum[CPU_GASRETURN], (All.CPU_Sum[CPU_GASRETURN]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_SNIIHEATING], (All.CPU_Sum[CPU_SNIIHEATING]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_HIIHEATING], (All.CPU_Sum[CPU_HIIHEATING]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_LOCALWIND], (All.CPU_Sum[CPU_LOCALWIND]) / All.CPU_Sum[CPU_ALL] * 100,

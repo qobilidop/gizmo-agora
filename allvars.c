@@ -209,9 +209,15 @@ FILE
 #endif
 *FdCPU;         /*!< file handle for cpu.txt log-file. */
 
+#ifdef SCF_POTENTIAL
+FILE *FdSCF;
+#endif
 
 #ifdef GALSF
 FILE *FdSfr;			/*!< file handle for sfr.txt log-file. */
+#endif
+#ifdef GALSF_FB_MECHANICAL
+FILE *FdSneIIHeating;	/*!< file handle for SNIIheating.txt log-file */
 #endif
 
 #ifdef GDE_DISTORTIONTENSOR

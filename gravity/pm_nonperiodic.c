@@ -66,6 +66,10 @@ static fftw_real *tidal_workspace;
 static fftw_real *d_tidal_workspace;
 #endif
 
+#ifdef DM_SCALARFIELD_SCREENING
+static fftw_real *kernel_scalarfield[2];
+static fftw_complex *fft_of_kernel_scalarfield[2];
+#endif
 
 void pm_nonperiodic_transposeA(fftw_real * field, fftw_real * scratch);
 void pm_nonperiodic_transposeB(fftw_real * field, fftw_real * scratch);
@@ -271,6 +275,18 @@ void pm_init_nonperiodic(void)
     }
   bytes_tot += bytes;
   fft_of_kernel[0] = (fftw_complex *) kernel[0];
+#ifdef DM_SCALARFIELD_SCREENING
+  if(!
+     (kernel_scalarfield[0] =
+      (fftw_real *) mymalloc("kernel_scalarfield[0]", bytes = fftsize * sizeof(fftw_real))))
+    {
+      printf("failed to allocate memory for `FFT-kernel_scalarfield[0]' (%g MB).\n",
+	     bytes / (1024.0 * 1024.0));
+      endrun(1);
+    }
+  bytes_tot += bytes;
+  fft_of_kernel_scalarfield[0] = (fftw_complex *) kernel_scalarfield[0];
+#endif
 #endif
 
 #if defined(PM_PLACEHIGHRESREGION)
@@ -281,6 +297,18 @@ void pm_init_nonperiodic(void)
     }
   bytes_tot += bytes;
   fft_of_kernel[1] = (fftw_complex *) kernel[1];
+#ifdef DM_SCALARFIELD_SCREENING
+  if(!
+     (kernel_scalarfield[1] =
+      (fftw_real *) mymalloc("kernel_scalarfield[1]", bytes = fftsize * sizeof(fftw_real))))
+    {
+      printf("failed to allocate memory for `FFT-kernel_scalarfield[1]' (%g MB).\n",
+	     bytes / (1024.0 * 1024.0));
+      endrun(1);
+    }
+  bytes_tot += bytes;
+  fft_of_kernel_scalarfield[1] = (fftw_complex *) kernel_scalarfield[1];
+#endif
 #endif
 
   if(ThisTask == 0)
@@ -391,6 +419,10 @@ void pm_setup_nonperiodic_kernel(void)
 #if !defined(BOX_PERIODIC)
   for(i = 0; i < fftsize; i++)	/* clear local density field */
     kernel[0][i] = 0;
+#ifdef DM_SCALARFIELD_SCREENING
+  for(i = 0; i < fftsize; i++)	/* clear local density field */
+    kernel_scalarfield[0][i] = 0;
+#endif
 
   for(i = slabstart_x; i < (slabstart_x + nslab_x); i++)
     for(j = 0; j < GRID; j++)
@@ -418,17 +450,32 @@ void pm_setup_nonperiodic_kernel(void)
 	  else
 	    kernel[0][GRID * GRID2 * (i - slabstart_x) + GRID2 * j + k] =
 	      -1 / (sqrt(M_PI) * (((double) ASMTH) / GRID));
+#ifdef DM_SCALARFIELD_SCREENING
+	  if(r > 0)
+	    kernel_scalarfield[0][GRID * GRID2 * (i - slabstart_x) + GRID2 * j + k] =
+	      -fac * All.ScalarBeta * exp(-r / All.ScalarScreeningLength) / r;
+	  else
+	    kernel_scalarfield[0][GRID * GRID2 * (i - slabstart_x) + GRID2 * j + k] =
+	      -1 / (sqrt(M_PI) * (((double) ASMTH) / GRID));
+#endif
 	}
 
   /* do the forward transform of the kernel */
 
   rfftwnd_mpi(fft_forward_plan, 1, kernel[0], workspace, FFTW_TRANSPOSED_ORDER);
+#ifdef DM_SCALARFIELD_SCREENING
+  rfftwnd_mpi(fft_forward_plan, 1, kernel_scalarfield[0], workspace, FFTW_TRANSPOSED_ORDER);
+#endif
 #endif
 
 
 #if defined(PM_PLACEHIGHRESREGION)
   for(i = 0; i < fftsize; i++)	/* clear local density field */
     kernel[1][i] = 0;
+#ifdef DM_SCALARFIELD_SCREENING
+  for(i = 0; i < fftsize; i++)	/* clear local density field */
+    kernel_scalarfield[1][i] = 0;
+#endif
   for(i = slabstart_x; i < (slabstart_x + nslab_x); i++)
     for(j = 0; j < GRID; j++)
       for(k = 0; k < GRID; k++)
@@ -458,12 +505,26 @@ void pm_setup_nonperiodic_kernel(void)
 	      kernel[1][GRID * GRID2 * (i - slabstart_x) + GRID2 * j + k] =
 		-fac / (sqrt(M_PI) * (((double) ASMTH) / GRID));
 	    }
+#ifdef DM_SCALARFIELD_SCREENING
+	  if(r > 0)
+	    kernel_scalarfield[1][GRID * GRID2 * (i - slabstart_x) + GRID2 * j + k] =
+	      -fac * All.ScalarBeta * exp(-r / All.ScalarScreeningLength) / r;
+	  else
+	    {
+	      fac = 1 - All.Asmth[1] / All.Asmth[0];
+	      kernel_scalarfield[1][GRID * GRID2 * (i - slabstart_x) + GRID2 * j + k] =
+		-fac / (sqrt(M_PI) * (((double) ASMTH) / GRID));
+	    }
+#endif
 	}
 
   report_memory_usage(&HighMark_pmnonperiodic, "PM_NONPERIODIC_SETUP");
 
   /* do the forward transform of the kernel */
   rfftwnd_mpi(fft_forward_plan, 1, kernel[1], workspace, FFTW_TRANSPOSED_ORDER);
+#ifdef DM_SCALARFIELD_SCREENING
+  rfftwnd_mpi(fft_forward_plan, 1, kernel_scalarfield[1], workspace, FFTW_TRANSPOSED_ORDER);
+#endif
 #endif
 
   /* deconvolve the Greens function twice with the CIC kernel */
@@ -512,10 +573,18 @@ void pm_setup_nonperiodic_kernel(void)
 #if !defined(BOX_PERIODIC)
 	      fft_of_kernel[0][ip].re *= ff;
 	      fft_of_kernel[0][ip].im *= ff;
+#ifdef DM_SCALARFIELD_SCREENING
+	      fft_of_kernel_scalarfield[0][ip].re *= ff;
+	      fft_of_kernel_scalarfield[0][ip].im *= ff;
+#endif
 #endif
 #if defined(PM_PLACEHIGHRESREGION)
 	      fft_of_kernel[1][ip].re *= ff;
 	      fft_of_kernel[1][ip].im *= ff;
+#ifdef DM_SCALARFIELD_SCREENING
+	      fft_of_kernel_scalarfield[1][ip].re *= ff;
+	      fft_of_kernel_scalarfield[1][ip].im *= ff;
+#endif
 #endif
 	    }
 	}
@@ -570,6 +639,12 @@ int pmforce_nonperiodic(int grnr)
   fftw_real *localfield_data, *import_data;
   MPI_Status status;
 
+#ifdef DM_SCALARFIELD_SCREENING
+  int phase;
+  double kscreening2;
+
+  kscreening2 = pow(All.BoxSize / All.ScalarScreeningLength / (2 * M_PI), 2);
+#endif
 
 #ifdef KSPACE_NEUTRINOS
   terminate("this option is not implemented here");
@@ -625,11 +700,20 @@ int pmforce_nonperiodic(int grnr)
 
   pm_init_nonperiodic_allocate();
 
+#ifdef DM_SCALARFIELD_SCREENING
+  for(phase = 0; phase < 2; phase++)
+    {
+#endif
 
 
       /* determine the cells each particles accesses, and how many particles lie on the grid patch */
       for(i = 0, num_on_grid = 0; i < NumPart; i++)
 	{
+#ifdef DM_SCALARFIELD_SCREENING
+	  if(phase == 1)
+	    if(P[i].Type == 0)	/* don't bin baryonic mass in this phase */
+	      continue;
+#endif
 	  if(P[i].Pos[0] < All.Corner[grnr][0] || P[i].Pos[0] >= All.UpperCorner[grnr][0])
 	    continue;
 	  if(P[i].Pos[1] < All.Corner[grnr][1] || P[i].Pos[1] >= All.UpperCorner[grnr][1])
@@ -833,6 +917,19 @@ int pmforce_nonperiodic(int grnr)
 	    {
 	      ip = GRID * (GRID / 2 + 1) * y + (GRID / 2 + 1) * x + z;
 
+#ifdef DM_SCALARFIELD_SCREENING
+	      if(phase == 1)
+		{
+		  re =
+		    fft_of_rhogrid[ip].re * fft_of_kernel_scalarfield[grnr][ip].re -
+		    fft_of_rhogrid[ip].im * fft_of_kernel_scalarfield[grnr][ip].im;
+
+		  im =
+		    fft_of_rhogrid[ip].re * fft_of_kernel_scalarfield[grnr][ip].im +
+		    fft_of_rhogrid[ip].im * fft_of_kernel_scalarfield[grnr][ip].re;
+		}
+	      else
+#endif
 		{
 		  re =
 		    fft_of_rhogrid[ip].re * fft_of_kernel[grnr][ip].re -
@@ -1079,6 +1176,11 @@ int pmforce_nonperiodic(int grnr)
 
 	  for(i = 0, j = 0; i < NumPart; i++)
 	    {
+#ifdef DM_SCALARFIELD_SCREENING
+	      if(phase == 1)
+		if(P[i].Type == 0)	/* baryons don't get an extra scalar force */
+		  continue;
+#endif
 #ifdef PM_PLACEHIGHRESREGION
 	      if(grnr == 1)
 		if(!(pmforce_is_particle_high_res(P[i].Type, P[i].Pos)))
@@ -1117,6 +1219,9 @@ int pmforce_nonperiodic(int grnr)
       myfree(localfield_first);
       myfree(localfield_d_data);
       myfree(localfield_globalindex);
+#ifdef DM_SCALARFIELD_SCREENING
+    }
+#endif
 
   pm_init_nonperiodic_free();
 
@@ -1906,6 +2011,12 @@ int pmtidaltensor_nonperiodic_diff(int grnr)
 
 
 
+#ifdef DM_SCALARFIELD_SCREENING
+  int phase;
+  double kscreening2;
+
+  kscreening2 = pow(All.BoxSize / All.ScalarScreeningLength / (2 * M_PI), 2);
+#endif
 
   if(ThisTask == 0)
     printf("Starting non-periodic PM calculation (grid=%d)  presently allocated=%g MB).\n", grnr,
@@ -1956,11 +2067,20 @@ int pmtidaltensor_nonperiodic_diff(int grnr)
 
   pm_init_nonperiodic_allocate();
 
+#ifdef DM_SCALARFIELD_SCREENING
+  for(phase = 0; phase < 2; phase++)
+    {
+#endif
 
 
       /* determine the cells each particles accesses, and how many particles lie on the grid patch */
       for(i = 0, num_on_grid = 0; i < NumPart; i++)
 	{
+#ifdef DM_SCALARFIELD_SCREENING
+	  if(phase == 1)
+	    if(P[i].Type == 0)	/* don't bin baryonic mass in this phase */
+	      continue;
+#endif
 	  if(P[i].Pos[0] < All.Corner[grnr][0] || P[i].Pos[0] >= All.UpperCorner[grnr][0])
 	    continue;
 	  if(P[i].Pos[1] < All.Corner[grnr][1] || P[i].Pos[1] >= All.UpperCorner[grnr][1])
@@ -2167,6 +2287,19 @@ int pmtidaltensor_nonperiodic_diff(int grnr)
 	    {
 	      ip = GRID * (GRID / 2 + 1) * y + (GRID / 2 + 1) * x + z;
 
+#ifdef DM_SCALARFIELD_SCREENING
+	      if(phase == 1)
+		{
+		  re =
+		    fft_of_rhogrid[ip].re * fft_of_kernel_scalarfield[grnr][ip].re -
+		    fft_of_rhogrid[ip].im * fft_of_kernel_scalarfield[grnr][ip].im;
+
+		  im =
+		    fft_of_rhogrid[ip].re * fft_of_kernel_scalarfield[grnr][ip].im +
+		    fft_of_rhogrid[ip].im * fft_of_kernel_scalarfield[grnr][ip].re;
+		}
+	      else
+#endif
 		{
 		  re =
 		    fft_of_rhogrid[ip].re * fft_of_kernel[grnr][ip].re -
@@ -2486,6 +2619,11 @@ int pmtidaltensor_nonperiodic_diff(int grnr)
 
 	  for(i = 0, j = 0; i < NumPart; i++)
 	    {
+#ifdef DM_SCALARFIELD_SCREENING
+	      if(phase == 1)
+		if(P[i].Type == 0)	/* baryons don't get an extra scalar force */
+		  continue;
+#endif
 #ifdef PM_PLACEHIGHRESREGION
 	      if(grnr == 1)
 		if(!(pmforce_is_particle_high_res(P[i].Type, P[i].Pos)))
@@ -2551,6 +2689,9 @@ int pmtidaltensor_nonperiodic_diff(int grnr)
       myfree(localfield_first);
       myfree(localfield_d_data);
       myfree(localfield_globalindex);
+#ifdef DM_SCALARFIELD_SCREENING
+    }
+#endif
 
   pm_init_nonperiodic_free();
 

@@ -190,8 +190,12 @@
 
 
 
+#if (defined(COOLING) && defined(GALSF) && defined(GALSF_FB_MECHANICAL)) && !defined(FIRE_UNPROTECT_FROZEN)
+#define PROTECT_FROZEN_FIRE
+#endif
+
 #ifdef PROTECT_FROZEN_FIRE
-#define USE_ORIGINAL_FIRE2_SNE_COUPLING_SCHEME // set to use the 'base' FIRE-2 SNe coupling. if commented out, will user newer version that more accurately manages the injected energy with neighbors moving to inject a specific target
+#define GALSF_USE_SNE_ONELOOP_SCHEME // set to use the 'base' FIRE-2 SNe coupling. if commented out, will user newer version that more accurately manages the injected energy with neighbors moving to inject a specific target
 #endif
 
 
@@ -271,7 +275,6 @@
 #endif
 
 
-
 /* force 'master' flags to be enabled for the appropriate methods, if we have enabled something using those methods */
 
 /* options for FIRE RT method */
@@ -287,7 +290,7 @@
 
 
 /* decide which diffusion method to use (for any diffusion-based method) */
-#if defined(RT_DIFFUSION) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(RT_DIFFUSION) && !defined(RT_DIFFUSION_EXPLICIT)
 #define RT_DIFFUSION_CG
 #endif
 /* check if flux-limiting is disabled: it should be on by default with diffusion-based methods */
@@ -295,10 +298,13 @@
 #define RT_FLUXLIMITER
 #endif
 /* check if we are -explicitly- evolving the radiation field, in which case we need to carry time-derivatives of the field */
+#if defined(RT_DIFFUSION_EXPLICIT)
+#define RT_EVOLVE_NGAMMA
+#endif
 
 /* enable radiation pressure forces unless they have been explicitly disabled */
 
-#if ((defined(RT_FLUXLIMITER) || defined(FLAG_NOT_IN_PUBLIC_CODE_FORCES) || defined(FLAG_NOT_IN_PUBLIC_CODE)) && !defined(RT_EVOLVE_FLUX)) && !defined(RT_EVOLVE_EDDINGTON_TENSOR)
+#if ((defined(RT_FLUXLIMITER) || defined(RT_RAD_PRESSURE_FORCES) || defined(RT_DIFFUSION_EXPLICIT)) && !defined(RT_EVOLVE_FLUX)) && !defined(RT_EVOLVE_EDDINGTON_TENSOR)
 #define RT_EVOLVE_EDDINGTON_TENSOR
 #endif
 
@@ -312,9 +318,6 @@
 #define RT_SOURCES 16
 
 /* cooling must be enabled for RT cooling to function */
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_OLDFORMAT) && !defined(COOLING)
-#define COOLING
-#endif
 
 
 
@@ -428,7 +431,7 @@
 #define DOGRAD_SOUNDSPEED 1
 #endif
 
-#if defined(CONDUCTION) || defined(VISCOSITY) || defined(TURB_DIFFUSION) || defined(MHD_NON_IDEAL) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(FLAG_NOT_IN_PUBLIC_CODE_DISABLE_DIFFUSION)) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(RT_EVOLVE_FLUX))
+#if defined(CONDUCTION) || defined(VISCOSITY) || defined(TURB_DIFFUSION) || defined(MHD_NON_IDEAL) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(FLAG_NOT_IN_PUBLIC_CODE_DISABLE_DIFFUSION)) || (defined(RT_DIFFUSION_EXPLICIT) && !defined(RT_EVOLVE_FLUX))
 #ifndef DISABLE_SUPER_TIMESTEPPING
 //#define SUPER_TIMESTEP_DIFFUSION
 #endif
@@ -451,6 +454,11 @@
 #include <assert.h>
 
 
+#ifdef NUCLEAR_NETWORK
+#include "nuclear/nuclear_network.h"
+void network_normalize(double *x, double *e, const struct network_data *nd, struct network_workspace *nw);
+int network_integrate( double temp, double rho, const double *x, double *dx, double dt, double *dedt, double *drhodt, const struct network_data *nd, struct network_workspace *nw );
+#endif
 
 
 #ifdef MYSORT
@@ -740,7 +748,9 @@ typedef unsigned long long peanokey;
 
 
 
+#ifndef FLAG_NOT_IN_PUBLIC_CODETYPES 
 #define GDE_TYPES 2
+#endif
 
 #ifndef LONGIDS
 typedef unsigned int MyIDType;
@@ -833,17 +843,16 @@ typedef MyDouble MyBigFloat;
 #define CPU_BLACKHOLES     28
 #define CPU_MISC           29
 #define CPU_DRAGFORCE      30
-#define CPU_GASRETURN      31
-#define CPU_SNIIHEATING    32
-#define CPU_HIIHEATING     33
-#define CPU_LOCALWIND      34
-#define CPU_HYDNETWORK     35
-#define CPU_AGSDENSCOMPUTE 36
-#define CPU_AGSDENSWAIT    37
-#define CPU_AGSDENSCOMM    38
-#define CPU_AGSDENSMISC    39
-#define CPU_SIDMSCATTER    40
-#define CPU_PARTS          41  /* this gives the number of parts above (must be last) */
+#define CPU_SNIIHEATING    31
+#define CPU_HIIHEATING     32
+#define CPU_LOCALWIND      33
+#define CPU_HYDNETWORK     34
+#define CPU_AGSDENSCOMPUTE 35
+#define CPU_AGSDENSWAIT    36
+#define CPU_AGSDENSCOMM    37
+#define CPU_AGSDENSMISC    38
+#define CPU_SIDMSCATTER    39
+#define CPU_PARTS          40  /* this gives the number of parts above (must be last) */
 
 #define CPU_STRING_LEN 120
 
@@ -1133,9 +1142,15 @@ extern FILE
 #endif
  *FdCPU;        /*!< file handle for cpu.txt log-file. */
 
+#ifdef SCF_POTENTIAL
+extern FILE *FdSCF;
+#endif
 
 #ifdef GALSF
 extern FILE *FdSfr;		/*!< file handle for sfr.txt log-file. */
+#endif
+#ifdef GALSF_FB_MECHANICAL
+extern FILE *FdSneIIHeating;	/*!< file handle for SNIIheating.txt log-file */
 #endif
 
 #ifdef GDE_DISTORTIONTENSOR
@@ -1214,6 +1229,10 @@ extern struct global_data_all_processes
 				   the maximum(!) number of particles.  Note: A typical local tree for N
 				   particles needs usually about ~0.65*N nodes. */
 
+#ifdef DM_SCALARFIELD_SCREENING
+  double ScalarBeta;
+  double ScalarScreeningLength;
+#endif
 
   /* some SPH parameters */
 
@@ -1457,6 +1476,9 @@ extern struct global_data_all_processes
   /* present day velocity dispersion of DM particle in cm/s (e.g. Neutralino = 0.03 cm/s) */
   double DM_velocity_dispersion;
   double TidalCorrection;
+#ifdef GDE_LEAN
+  double GDEInitStreamDensity;
+#endif
 #endif
 
 #ifdef GALSF		/* star formation and feedback sector */
@@ -1496,13 +1518,11 @@ extern struct global_data_all_processes
 
 #endif // GALSF
 
-    
-#if defined(COOL_METAL_LINES_BY_SPECIES) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
+#if defined(COOL_METAL_LINES_BY_SPECIES) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_MECHANICAL) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
   double InitMetallicityinSolar;
   double InitStellarAgeinGyr;
 #endif
 
-    
 #if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
     double BAL_f_accretion;
     double BAL_v_outflow;
@@ -1606,6 +1626,15 @@ extern struct global_data_all_processes
     char EosTable[100];
 #endif
 
+#ifdef NUCLEAR_NETWORK
+  char NetworkRates[100];
+  char NetworkPartFunc[100];
+  char NetworkMasses[100];
+  char NetworkWeakrates[100];
+  struct network_data nd;
+  struct network_workspace nw;
+  double NetworkTempThreshold;
+#endif
 
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
   double AGS_DesNumNgb;
@@ -1682,6 +1711,7 @@ extern ALIGN(32) struct particle_data
     MyBigFloat stream_density;                          /*!< physical stream density that is going to be integrated */
     double tidal_tensorps[3][3];                        /*!< tidal tensor (=second derivatives of grav. potential) */
     float caustic_counter;                              /*!< caustic counter */
+#ifndef FLAG_NOT_IN_PUBLIC_CODELEAN
     MyBigFloat annihilation;                            /*!< integrated annihilation rate */
     MyBigFloat analytic_annihilation;                   /*!< analytically integrated annihilation rate */
     MyBigFloat rho_normed_cutoff_current;               /*!< current and last normed_cutoff density in rho_max/rho_init * sqrt(sigma) */
@@ -1694,6 +1724,19 @@ extern ALIGN(32) struct particle_data
     float init_density;                                 /*!< initial stream density */
     float analytic_caustics;                            /*!< number of caustics that were integrated analytically */
     float a0;
+#endif
+#ifdef OUTPUT_GDE_LASTCAUSTIC
+    MyFloat lc_Time;                                  /*!< time of caustic passage */
+    MyFloat lc_Pos[3];                                /*!< position of caustic */
+    MyFloat lc_Vel[3];                                /*!< particle velocity when passing through caustic */
+    MyFloat lc_rho_normed_cutoff;                     /*!< normed_cutoff density at caustic */
+    MyFloat lc_Dir_x[3];                              /*!< principal axis frame of smear out */
+    MyFloat lc_Dir_y[3];
+    MyFloat lc_Dir_z[3];
+    MyFloat lc_smear_x;                               /*!< smear out length */
+    MyFloat lc_smear_y;
+    MyFloat lc_smear_z;
+#endif
 #ifdef PMGRID
     double tidal_tensorpsPM[3][3];	            /*!< for TreePM simulations, long range tidal field */
 #endif
@@ -1725,8 +1768,12 @@ extern ALIGN(32) struct particle_data
     MyFloat KernelSum_Around_RT_Source; /*!< kernel summation around sources for radiation injection (save so can be different from 'density') */
 #endif
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
+#if defined(GALSF_FB_MECHANICAL) || defined(GALSF_FB_THERMAL)
     MyFloat SNe_ThisTimeStep; /* flag that indicated number of SNe for the particle in the timestep */
+#endif
+#ifdef GALSF_FB_MECHANICAL
+#define AREA_WEIGHTED_SUM_ELEMENTS 11 /* number of weights needed for full momentum-and-energy conserving system */
+    MyFloat Area_weighted_sum[AREA_WEIGHTED_SUM_ELEMENTS]; /* normalized weights for particles in kernel weighted by area, not mass */
 #endif
     
 #if defined(GRAIN_FLUID)
@@ -1771,6 +1818,10 @@ extern ALIGN(32) struct particle_data
     int dt_step;
 #endif
     
+#ifdef SCF_HYBRID
+    MyDouble GravAccelSum[3];
+    MyFloat MassBackup;
+#endif
     
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
     MyDouble AGS_Hsml;          /*!< smoothing length (for gravitational forces) */
@@ -1789,9 +1840,15 @@ extern ALIGN(32) struct particle_data
  *DomainPartBuf;		/*!< buffer for particle data used in domain decomposition */
 
 
+#ifndef FLAG_NOT_IN_PUBLIC_CODELEAN
 #define GDE_TIMEBEGIN(i) (P[i].a0)
 #define GDE_VMATRIX(i, a, b) (P[i].V_matrix[a][b])
 #define GDE_INITDENSITY(i) (P[i].init_density)
+#else
+#define GDE_TIMEBEGIN(i) (All.TimeBegin)
+#define GDE_VMATRIX(i, a, b) (0.0)
+#define GDE_INITDENSITY(i) (All.GDEInitStreamDensity)
+#endif
 
 #if defined(BLACK_HOLES)
 #define BPP(i) P[(i)]
@@ -2462,6 +2519,10 @@ extern ALIGN(32) struct NODE
     
   MyFloat maxsoft;		/*!< hold the maximum gravitational softening of particle in the node */
   
+#ifdef DM_SCALARFIELD_SCREENING
+  MyFloat s_dm[3];
+  MyFloat mass_dm;
+#endif
 }
  *Nodes_base,			/*!< points to the actual memory allocted for the nodes */
  *Nodes;			/*!< this is a pointer used to access the nodes which is shifted such that Nodes[All.MaxPart]
@@ -2471,6 +2532,10 @@ extern ALIGN(32) struct NODE
 extern struct extNODE
 {
   MyLongDouble dp[3];
+#ifdef DM_SCALARFIELD_SCREENING
+  MyLongDouble dp_dm[3];
+  MyFloat vs_dm[3];
+#endif
   MyFloat vs[3];
   MyFloat vmax;
   MyFloat hmax;			/*!< maximum gas kernel length in node. Only used for gas particles */

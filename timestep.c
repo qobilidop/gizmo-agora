@@ -314,6 +314,9 @@ integertime get_timestep(int p,		/*!< particle index */
         hubble_param = 1.0;
 #endif
     
+#ifdef NUCLEAR_NETWORK
+    double dt_network, dt_species;
+#endif
     
     if(flag == 0)
     {
@@ -333,14 +336,6 @@ integertime get_timestep(int p,		/*!< particle index */
             ax += SphP[p].TurbAccel[0];
             ay += SphP[p].TurbAccel[1];
             az += SphP[p].TurbAccel[2];
-        }
-#endif
-#ifdef RT_RAD_PRESSURE_OUTPUT
-        if(P[p].Type==0)
-        {
-            ax += SphP[p].RadAccel[0];
-            ay += SphP[p].RadAccel[1];
-            az += SphP[p].RadAccel[2];
         }
 #endif
         
@@ -398,6 +393,22 @@ integertime get_timestep(int p,		/*!< particle index */
     }
 #endif
 
+#if (defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)) && defined(GALSF) && defined(GALSF_FB_MECHANICAL)
+    if(((P[p].Type == 4)||((All.ComovingIntegrationOn==0)&&((P[p].Type == 2)||(P[p].Type==3))))&&(P[p].Mass>0))
+    {
+        if((All.ComovingIntegrationOn))
+        {
+#ifdef ADAPTIVE_GRAVSOFT_FORALL
+            double ags_h = DMAX(PPP[p].AGS_Hsml , DMAX(PPP[p].Hsml,All.ForceSoftening[P[p].Type]));
+            ags_h = DMIN(ags_h, DMAX(100.*All.ForceSoftening[P[p].Type] , 10.*PPP[p].AGS_Hsml));
+#else
+            double ags_h = DMAX(PPP[p].Hsml,All.ForceSoftening[P[p].Type]);
+            ags_h = DMIN(ags_h, 10.*All.ForceSoftening[P[p].Type]);
+#endif
+            dt = sqrt(2 * All.ErrTolIntAccuracy * All.cf_atime  * KERNEL_CORE_SIZE * ags_h / ac);
+        }
+    }
+#endif
 
     
     
@@ -571,6 +582,33 @@ integertime get_timestep(int p,		/*!< particle index */
                 if(dt_divv < dt) {dt = dt_divv;}
             }
             
+#ifdef NUCLEAR_NETWORK
+            if(SphP[p].Temperature > 1e7)
+            {
+                /* check if the new timestep blows up our abundances */
+                dt_network = dt * All.UnitTime_in_s;
+                for(k = 0; k < EOS_NSPECIES; k++)
+                {
+                    if(SphP[p].dxnuc[k] > 0)
+                    {
+                        dt_species = (1.0 - SphP[p].xnuc[k]) / SphP[p].dxnuc[k];
+                        if(dt_species < dt_network)
+                            dt_network = dt_species;
+                    }
+                    else if(SphP[p].dxnuc[k] < 0)
+                    {
+                        dt_species = (0.0 - SphP[p].xnuc[k]) / SphP[p].dxnuc[k];
+                        if(dt_species < dt_network)
+                            dt_network = dt_species;
+                    }
+                    
+                }
+                
+                dt_network /= All.UnitTime_in_s;
+                if(dt_network < dt)
+                    dt = dt_network;
+            }
+#endif
             
             
 #ifdef SUPER_TIMESTEP_DIFFUSION
@@ -633,7 +671,7 @@ integertime get_timestep(int p,		/*!< particle index */
     
     
     // add a 'stellar evolution timescale' criterion to the timestep, to prevent too-large jumps in feedback //
-#if defined(YOUNGSTARWINDDRIVING) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(YOUNGSTARWINDDRIVING) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_MECHANICAL) || defined(FLAG_NOT_IN_PUBLIC_CODE)
     if(((P[p].Type == 4)||((All.ComovingIntegrationOn==0)&&((P[p].Type == 2)||(P[p].Type==3))))&&(P[p].Mass>0))
     {
         double star_age = evaluate_stellar_age_Gyr(P[p].StellarAge);

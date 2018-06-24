@@ -150,6 +150,10 @@ void begrun(void)
     tillotson_eos_init();
 #endif
     
+#ifdef NUCLEAR_NETWORK
+  network_init(All.EosSpecies, All.NetworkRates, All.NetworkPartFunc, All.NetworkMasses, All.NetworkWeakrates, &All.nd);
+  network_workspace_init(&All.nd, &All.nw);
+#endif
 
 #ifdef TURB_DRIVING
     init_turb();
@@ -181,6 +185,7 @@ void begrun(void)
       All.BufferSize = all.BufferSize;
       All.TimeLimitCPU = all.TimeLimitCPU;
       All.ResubmitOn = all.ResubmitOn;
+      All.SnapFormat = all.SnapFormat;
       All.TimeBetSnapshot = all.TimeBetSnapshot;
       All.TimeBetStatistics = all.TimeBetStatistics;
       All.CpuTimeBetRestartFile = all.CpuTimeBetRestartFile;
@@ -284,6 +289,15 @@ void begrun(void)
         strcpy(All.EosTable, all.EosTable);
 #endif
 
+#ifdef NUCLEAR_NETWORK
+      strcpy(All.NetworkRates, all.NetworkRates);
+      strcpy(All.NetworkPartFunc, all.NetworkPartFunc);
+      strcpy(All.NetworkMasses, all.NetworkMasses);
+      strcpy(All.NetworkWeakrates, all.NetworkWeakrates);
+      All.nd = all.nd;
+      All.nw = all.nw;
+      All.NetworkTempThreshold = all.NetworkTempThreshold;
+#endif
 
       if(All.TimeMax != all.TimeMax)
 	readjust_timebase(All.TimeMax, all.TimeMax);
@@ -609,6 +623,14 @@ void open_outputfiles(void)
 #endif
 
 
+#ifdef SCF_POTENTIAL
+  sprintf(buf, "%s%s", All.OutputDir, "scf_coeff.txt");
+  if(!(FdSCF = fopen(buf, mode)))
+    {
+      printf("error in opening file '%s'\n", buf);
+      endrun(1);
+    }
+#endif
 
 #ifdef GALSF
   sprintf(buf, "%s%s", All.OutputDir, "sfr.txt");
@@ -620,6 +642,14 @@ void open_outputfiles(void)
 #endif
 
     
+#ifdef GALSF_FB_MECHANICAL
+    sprintf(buf, "%s%s", All.OutputDir, "SNeIIheating.txt");
+    if(!(FdSneIIHeating = fopen(buf, mode)))
+    {
+        printf("error in opening file '%s'\n", buf);
+        endrun(1);
+    }  
+#endif
     
     
 
@@ -899,10 +929,7 @@ void read_parameter_file(char *fname)
         id[nt++] = REAL;
 #endif
         
-        
-        
-
-#if defined(COOL_METAL_LINES_BY_SPECIES) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
+#if defined(COOL_METAL_LINES_BY_SPECIES) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_MECHANICAL) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
         strcpy(tag[nt],"InitMetallicity");
         addr[nt] = &All.InitMetallicityinSolar;
         id[nt++] = REAL;
@@ -912,7 +939,9 @@ void read_parameter_file(char *fname)
         id[nt++] = REAL;
 #endif
         
+
         
+
 
         
 
@@ -1059,6 +1088,15 @@ void read_parameter_file(char *fname)
 
       strcpy(tag[nt], "DM_velocity_dispersion");
       addr[nt] = &All.DM_velocity_dispersion;
+      id[nt++] = REAL;
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+      strcpy(tag[nt], "ScalarBeta");
+      addr[nt] = &All.ScalarBeta;
+      id[nt++] = REAL;
+
+      strcpy(tag[nt], "ScalarScreeningLength");
+      addr[nt] = &All.ScalarScreeningLength;
       id[nt++] = REAL;
 #endif
 
@@ -1338,6 +1376,27 @@ void read_parameter_file(char *fname)
 #endif
         
         
+#ifdef NUCLEAR_NETWORK
+      strcpy(tag[nt], "NetworkRates");
+      addr[nt] = All.NetworkRates;
+      id[nt++] = STRING;
+
+      strcpy(tag[nt], "NetworkPartFunc");
+      addr[nt] = All.NetworkPartFunc;
+      id[nt++] = STRING;
+
+      strcpy(tag[nt], "NetworkMasses");
+      addr[nt] = All.NetworkMasses;
+      id[nt++] = STRING;
+
+      strcpy(tag[nt], "NetworkWeakrates");
+      addr[nt] = All.NetworkWeakrates;
+      id[nt++] = STRING;
+
+      strcpy(tag[nt], "NetworkTempThreshold");
+      addr[nt] = &All.NetworkTempThreshold;
+      id[nt++] = REAL;
+#endif
 
 
 #ifdef ADAPTIVE_GRAVSOFT_FORALL

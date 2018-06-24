@@ -213,6 +213,9 @@ struct hydrodata_in
 #ifdef DOGRAD_SOUNDSPEED
         MyDouble SoundSpeed[3];
 #endif
+#if defined(RT_DIFFUSION_EXPLICIT) && defined(RT_EVOLVE_EDDINGTON_TENSOR)
+        MyDouble E_gamma_ET[N_RT_FREQ_BINS][3];
+#endif
     } Gradients;
     MyFloat NV_T[3][3];
     
@@ -227,6 +230,17 @@ struct hydrodata_in
     MyFloat Metallicity[NUM_METAL_SPECIES];
 #endif
     
+#ifdef RT_DIFFUSION_EXPLICIT
+    MyDouble E_gamma[N_RT_FREQ_BINS];
+    MyDouble Kappa_RT[N_RT_FREQ_BINS];
+    MyDouble RT_DiffusionCoeff[N_RT_FREQ_BINS];
+#if defined(RT_EVOLVE_FLUX) || defined(HYDRO_SPH)
+    MyDouble ET[N_RT_FREQ_BINS][6];
+#endif
+#ifdef RT_EVOLVE_FLUX
+    MyDouble Flux[N_RT_FREQ_BINS][3];
+#endif
+#endif
     
 #ifdef TURB_DIFFUSION
     MyFloat TD_DiffCoeff;
@@ -395,8 +409,25 @@ static inline void particle2in_hydra(struct hydrodata_in *in, int i)
 #ifdef DOGRAD_SOUNDSPEED
         in->Gradients.SoundSpeed[k] = SphP[i].Gradients.SoundSpeed[k];
 #endif
+#if defined(RT_DIFFUSION_EXPLICIT) && defined(RT_EVOLVE_EDDINGTON_TENSOR)
+        for(j=0;j<N_RT_FREQ_BINS;j++) {in->Gradients.E_gamma_ET[j][k] = SphP[i].Gradients.E_gamma_ET[j][k];}
+#endif
     }
 
+#ifdef RT_DIFFUSION_EXPLICIT
+    for(k=0;k<N_RT_FREQ_BINS;k++)
+    {
+        in->E_gamma[k] = SphP[i].E_gamma_Pred[k];
+        in->Kappa_RT[k] = SphP[i].Kappa_RT[k];
+        in->RT_DiffusionCoeff[k] = rt_diffusion_coefficient(i,k);
+#if defined(RT_EVOLVE_FLUX) || defined(HYDRO_SPH)
+        int k_dir; for(k_dir=0;k_dir<6;k_dir++) in->ET[k][k_dir] = SphP[i].ET[k][k_dir];
+#endif
+#ifdef RT_EVOLVE_FLUX
+        for(k_dir=0;k_dir<3;k_dir++) in->Flux[k][k_dir] = SphP[i].Flux_Pred[k][k_dir];
+#endif
+    }
+#endif
 
 #if defined(TURB_DIFF_METALS) || (defined(METALS) && defined(HYDRO_MESHLESS_FINITE_VOLUME))
     for(k=0;k<NUM_METAL_SPECIES;k++) {in->Metallicity[k] = P[i].Metallicity[k];}
@@ -670,11 +701,7 @@ void hydro_final_operations_and_cleanup(void)
             }
             for(k=0;k<3;k++)
             {
-#ifdef RT_RAD_PRESSURE_OUTPUT
-                SphP[i].RadAccel[k] = radacc[k];
-#else
                 SphP[i].HydroAccel[k] += radacc[k];
-#endif
             } 
 #endif
 #endif
@@ -726,6 +753,41 @@ void hydro_final_operations_and_cleanup(void)
     
     
     
+#ifdef NUCLEAR_NETWORK
+    if(ThisTask == 0)
+    {
+        printf("Doing nuclear network.\n");
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    tstart = my_second();
+    for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i])
+        if(P[i].Type == 0)
+        {
+            /* evaluate network here, but do it only for high enough temperatures */
+            if(SphP[i].Temperature > All.NetworkTempThreshold)
+            {
+                nuc_particles++;
+                network_integrate(SphP[i].Temperature, SphP[i].Density * All.UnitDensity_in_cgs, SphP[i].xnuc,
+                                  SphP[i].dxnuc, dt*All.UnitTime_in_s, &dedt_nuc, NULL, &All.nd, &All.nw);
+                SphP[i].DtInternalEnergy += dedt_nuc * All.UnitEnergy_in_cgs / All.UnitTime_in_s;
+            }
+            else
+            {
+                for(k = 0; k < EOS_NSPECIES; k++)
+                {
+                    SphP[i].dxnuc[k] = 0;
+                }
+            }
+        }
+    tend = my_second();
+    timenetwork += timediff(tstart, tend);
+    MPI_Allreduce(&nuc_particles, &nuc_particles_sum, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    if(ThisTask == 0)
+    {
+        printf("Nuclear network done for %d particles.\n", nuc_particles_sum);
+    }
+    timewait1 += timediff(tend, my_second());
+#endif
 }
 
 
