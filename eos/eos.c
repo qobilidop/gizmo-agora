@@ -86,7 +86,7 @@ double get_pressure(int i)
     /* standard finite-volume formulation of this (note there is some geometric ambiguity about whether there should be a "pi" in the equation below, but this 
         can be completely folded into the (already arbitrary) definition of NJeans, so we just use the latter parameter */
     double NJeans = 4; // set so that resolution = lambda_Jeans/NJeans -- fragmentation with Jeans/Toomre scales below this will be artificially suppressed now
-    double xJeans = (NJeans * NJeans / GAMMA / PI) * All.G * h_eff*h_eff * SphP[i].Density * SphP[i].Density * All.cf_afac1/All.cf_atime; // this definition is for the AGORA project, see Kim et al. 2016 Eqn. (3)
+    double xJeans = (NJeans * NJeans / GAMMA / M_PI) * All.G * h_eff*h_eff * SphP[i].Density * SphP[i].Density * All.cf_afac1/All.cf_atime; // this definition is for the AGORA project, see Kim et al. 2016 Eqn. (3)
     if(xJeans>press) press=xJeans;
     SphP[i].SoundSpeed = sqrt(GAMMA * press / Particle_density_for_energy_i(i));
 #endif
