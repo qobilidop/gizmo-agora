@@ -319,7 +319,7 @@ void InitGrackle(void)
     // Flag to enable a UV background. If enabled, the cooling table to be used must be specified with the grackle_data_file parameter. Default: 0.
     grackle_data.UVbackground           = 1;                  // UV background on
     // Flag to enable Compton heating from an X-ray background following Madau & Efstathiou (1999). Default: 0.
-    grackle_data.Compton_xray_heating   = 1;
+    grackle_data.Compton_xray_heating   = 0;
     
     
     // Flag to enable H2 collision-induced emission cooling from Ripamonti & Abel (2004). Default: 0.
