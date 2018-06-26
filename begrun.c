@@ -901,9 +901,9 @@ void read_parameter_file(char *fname)
 #endif
 
 #ifdef METALS
-    strcpy(tag[nt],"SolarAbundance");
-    addr[nt] = &All.SolarAbundance;
-    id[nt++] = REAL;
+        strcpy(tag[nt],"SolarAbundance");
+        addr[nt] = &All.SolarAbundance;
+        id[nt++] = REAL;
 #endif
         
 #if defined(COOL_METAL_LINES_BY_SPECIES) || defined(COOL_GRACKLE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_MECHANICAL) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
