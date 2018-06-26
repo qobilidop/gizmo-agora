@@ -284,7 +284,7 @@ void InitGrackle(void)
     // Third, set parameter values for chemistry & cooling
 
     // Sync solar abundance value
-    grackle_data.SolarMetalFractionByMass = All.SolarAbundances[0];
+    grackle_data.SolarMetalFractionByMass = All.SolarAbundance;
 
     /* optional flags:: */
     
