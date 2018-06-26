@@ -159,9 +159,6 @@ void drift_particle(int i, integertime time1)
     }
 #endif
     
-#ifdef GDE_DISTORTIONTENSOR
-    do_phase_space_drift(i, dt_drift);
-#endif
     
     if((P[i].Type == 0) && (P[i].Mass > 0))
         {
@@ -190,10 +187,6 @@ void drift_particle(int i, integertime time1)
 #if defined(TURB_DRIVING)
             for(j = 0; j < 3; j++)
                 SphP[i].VelPred[j] += SphP[i].TurbAccel[j] * dt_gravkick;
-#endif
-#ifdef RT_RAD_PRESSURE_OUTPUT
-            for(j = 0; j < 3; j++)
-                SphP[i].VelPred[j] += SphP[i].RadAccel[j] * All.cf_atime * dt_hydrokick;
 #endif
             
 #ifdef HYDRO_MESHLESS_FINITE_VOLUME

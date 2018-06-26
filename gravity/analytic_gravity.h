@@ -3,7 +3,11 @@
  *
  *  This file contains supplemental code if you want to add an 
  *   -analytic- potential or gravitational force in the code, 
- *   rather than solely relying on the calculated self-gravity
+ *   rather than solely relying on the calculated self-gravity. 
+ *   Note that the terms here are added at the end of the self-gravity
+ *   loop, so if you want to keep self-gravity, but add these, you need
+ *   to make sure that your routine -adds to- the GravAccel values, rather 
+ *   than re-setting them entirely.
  */
 /*
  * This file was written by Phil Hopkins (phopkins@caltech.edu) for GIZMO.
@@ -97,20 +101,6 @@ void GravAccel_StaticPlummerSphere()
         r = sqrt(r2);
         for(k = 0; k < 3; k++) {P[i].GravAccel[k] += -dp[k] / pow(r2 + 1, 1.5);}
         
-#ifdef GDE_DISTORTIONTENSOR
-        double x, y, z, f, f2;
-        x = dp[0]; y = dp[1]; z = dp[2];
-        f = pow(r2 + 1, 1.5); f2 = pow(r2 + 1, 2.5);
-        P[i].tidal_tensorps[0][0] += -1.0 / f + 3.0 * x * x / f2;
-        P[i].tidal_tensorps[0][1] += -0.0 / f + 3.0 * x * y / f2;
-        P[i].tidal_tensorps[0][2] += -0.0 / f + 3.0 * x * z / f2;
-        P[i].tidal_tensorps[1][1] += -1.0 / f + 3.0 * y * y / f2;
-        P[i].tidal_tensorps[1][2] += -0.0 / f + 3.0 * y * z / f2;
-        P[i].tidal_tensorps[2][2] += -1.0 / f + 3.0 * z * z / f2;
-        P[i].tidal_tensorps[1][0] += P[i].tidal_tensorps[0][1];
-        P[i].tidal_tensorps[2][0] += P[i].tidal_tensorps[0][2];
-        P[i].tidal_tensorps[2][1] += P[i].tidal_tensorps[1][2];
-#endif
     }
 }
 
@@ -137,20 +127,6 @@ void GravAccel_StaticHernquist()
         {
             for(k = 0; k < 3; k++) {P[i].GravAccel[k] += -All.G * m * dp[k] / (r * r * r);}
             
-#ifdef GDE_DISTORTIONTENSOR
-            double x, y, z, r2, r3, f, f2, f3;
-            x = dp[0]; y = dp[1]; z = dp[2];
-            r2 = r * r; r3 = r * r2; f = r + a; f2 = f * f; f3 = f2 * f;
-            P[i].tidal_tensorps[0][0] += All.G * (2.0 * HQ_M200 / (r2 * f3) * x * x + HQ_M200 / (r3 * f2) * x * x - HQ_M200 / (r * f2));
-            P[i].tidal_tensorps[0][1] += All.G * (2.0 * HQ_M200 / (r2 * f3) * x * y + HQ_M200 / (r3 * f2) * x * y);
-            P[i].tidal_tensorps[0][2] += All.G * (2.0 * HQ_M200 / (r2 * f3) * x * z + HQ_M200 / (r3 * f2) * x * z);
-            P[i].tidal_tensorps[1][1] += All.G * (2.0 * HQ_M200 / (r2 * f3) * y * y + HQ_M200 / (r3 * f2) * y * y - HQ_M200 / (r * f2));
-            P[i].tidal_tensorps[1][2] += All.G * (2.0 * HQ_M200 / (r2 * f3) * y * z + HQ_M200 / (r3 * f2) * y * z);
-            P[i].tidal_tensorps[2][2] += All.G * (2.0 * HQ_M200 / (r2 * f3) * z * z + HQ_M200 / (r3 * f2) * z * z - HQ_M200 / (r * f2));
-            P[i].tidal_tensorps[1][0] += P[i].tidal_tensorps[0][1];
-            P[i].tidal_tensorps[2][0] += P[i].tidal_tensorps[0][2];
-            P[i].tidal_tensorps[2][1] += P[i].tidal_tensorps[1][2];
-#endif
         }
     }
 }
@@ -234,9 +210,9 @@ void GravAccel_KeplerianOrbit()
         dp[0] -= boxHalf_X; dp[1] -= boxHalf_Y;
 #endif
         r2 = dp[0]*dp[0] + dp[1]*dp[1]; r = sqrt(r2);
-        P[i].GravAccel[0] = -dp[0] / (r2 * r);
-        P[i].GravAccel[1] = -dp[1] / (r2 * r);
-        P[i].GravAccel[2] = 0;
+        P[i].GravAccel[0] += -dp[0] / (r2 * r);
+        P[i].GravAccel[1] += -dp[1] / (r2 * r);
+        P[i].GravAccel[2] += 0;
     }
 }
 
@@ -353,43 +329,6 @@ void GravAccel_StaticNFW()
             P[i].GravAccel[1] += -All.G * m * dp[1] / (r * r * r);
             P[i].GravAccel[2] += -All.G * m * dp[2] / (r * r * r);
             
-#ifdef GDE_DISTORTIONTENSOR
-            double R200 = pow(NFW_M200 * All.G / (100 * All.Hubble_H0_CodeUnits * All.Hubble_H0_CodeUnits), 1.0 / 3);
-            double Rs = R200 / NFW_C;
-            double K = All.G * NFW_M200 / (Rs * (log(1 + NFW_C) - NFW_C / (1 + NFW_C)));
-            double r_red = r / Rs;
-            double x, y, z;
-            x = dp[0]; y = dp[1]; z = dp[2];
-            
-            P[i].tidal_tensorps[0][0] +=
-            -(-K * (1.0 / (r * (1 + r_red)) - log(1 + r_red) / (r * r_red)) * (1 / r - x * x / (r * r * r)) -
-              K * (-2.0 / (r * r * (1 + r_red)) - 1.0 / (r * (1 + r_red) * (1 + r_red) * Rs) +
-                   2.0 * Rs * log(1 + r_red) / (r * r * r)) * x * x / (r * r));
-            P[i].tidal_tensorps[0][1] +=
-            -(-K * (1.0 / (r * (1 + r_red)) - log(1 + r_red) / (r * r_red)) * (0 - x * y / (r * r * r)) -
-              K * (-2.0 / (r * r * (1 + r_red)) - 1.0 / (r * (1 + r_red) * (1 + r_red) * Rs) +
-                   2.0 * Rs * log(1 + r_red) / (r * r * r)) * x * y / (r * r));
-            P[i].tidal_tensorps[0][2] +=
-            -(-K * (1.0 / (r * (1 + r_red)) - log(1 + r_red) / (r * r_red)) * (0 - x * z / (r * r * r)) -
-              K * (-2.0 / (r * r * (1 + r_red)) - 1.0 / (r * (1 + r_red) * (1 + r_red) * Rs) +
-                   2.0 * Rs * log(1 + r_red) / (r * r * r)) * x * z / (r * r));
-            P[i].tidal_tensorps[1][1] +=
-            -(-K * (1.0 / (r * (1 + r_red)) - log(1 + r_red) / (r * r_red)) * (1 / r - y * y / (r * r * r)) -
-              K * (-2.0 / (r * r * (1 + r_red)) - 1.0 / (r * (1 + r_red) * (1 + r_red) * Rs) +
-                   2.0 * Rs * log(1 + r_red) / (r * r * r)) * y * y / (r * r));
-            P[i].tidal_tensorps[1][2] +=
-            -(-K * (1.0 / (r * (1 + r_red)) - log(1 + r_red) / (r * r_red)) * (0 - y * z / (r * r * r)) -
-              K * (-2.0 / (r * r * (1 + r_red)) - 1.0 / (r * (1 + r_red) * (1 + r_red) * Rs) +
-                   2.0 * Rs * log(1 + r_red) / (r * r * r)) * y * z / (r * r));
-            P[i].tidal_tensorps[2][2] +=
-            -(-K * (1.0 / (r * (1 + r_red)) - log(1 + r_red) / (r * r_red)) * (1 / r - z * z / (r * r * r)) -
-              K * (-2.0 / (r * r * (1 + r_red)) - 1.0 / (r * (1 + r_red) * (1 + r_red) * Rs) +
-                   2.0 * Rs * log(1 + r_red) / (r * r * r)) * z * z / (r * r));
-            
-            P[i].tidal_tensorps[1][0] += P[i].tidal_tensorps[0][1];
-            P[i].tidal_tensorps[2][0] += P[i].tidal_tensorps[0][2];
-            P[i].tidal_tensorps[2][1] += P[i].tidal_tensorps[1][2];
-#endif
         } // if(r > 0) //
     } // for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i]) //
 }
@@ -414,7 +353,7 @@ void GravAccel_PaczynskyWiita()
         if(r > r_g)
         {
             double q = PACZYNSKY_WIITA_MASS/((r - r_g)*(r - r_g));
-            for(k = 0; k < 3; k++) {P[i].GravAccel[k] = - q * P[i].Pos[k]/r;}
+            for(k = 0; k < 3; k++) {P[i].GravAccel[k] += - q * P[i].Pos[k]/r;}
         }
     }
 }

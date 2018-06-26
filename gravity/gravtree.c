@@ -89,9 +89,6 @@ void gravity_tree(void)
     double tstart, tend, ax, ay, az;
     MPI_Status status;
     
-#ifdef GDE_DISTORTIONTENSOR
-    int i1, i2;
-#endif
 #endif
     
     
@@ -368,10 +365,10 @@ void gravity_tree(void)
                     GravDataIn[j].Type = P[place].Type;
                     GravDataIn[j].OldAcc = P[place].OldAcc;
                     for(k = 0; k < 3; k++) {GravDataIn[j].Pos[k] = P[place].Pos[k];}
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
                     GravDataIn[j].Mass = P[place].Mass;
 #endif
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
                     if( (P[place].Type == 0) && (PPP[place].Hsml > All.ForceSoftening[P[place].Type]) )
                         GravDataIn[j].Soft = PPP[place].Hsml;
                     else
@@ -522,11 +519,6 @@ void gravity_tree(void)
                     {
                     }
                     
-#ifdef GDE_DISTORTIONTENSOR
-                    for(i1 = 0; i1 < 3; i1++)
-                        for(i2 = 0; i2 < 3; i2++)
-                            P[place].tidal_tensorps[i1][i2] += GravDataOut[j].tidal_tensorps[i1][i2];
-#endif
                     
 #ifdef EVALPOTENTIAL
                     P[place].Potential += GravDataOut[j].Potential;
@@ -624,35 +616,6 @@ void gravity_tree(void)
         for(j = 0; j < 3; j++)
             P[i].GravAccel[j] *= All.G;
         
-#ifdef GDE_DISTORTIONTENSOR
-        /*
-         Diagonal terms of tidal tensor need correction, because tree is running over
-         all particles -> also over target particle -> extra term -> correct it
-         */
-        /* 3D -> full forces */
-        P[i].tidal_tensorps[0][0] +=
-        P[i].Mass / (All.ForceSoftening[P[i].Type] * All.ForceSoftening[P[i].Type] *
-                     All.ForceSoftening[P[i].Type]) * 10.666666666667;
-        
-        P[i].tidal_tensorps[1][1] +=
-        P[i].Mass / (All.ForceSoftening[P[i].Type] * All.ForceSoftening[P[i].Type] *
-                     All.ForceSoftening[P[i].Type]) * 10.666666666667;
-        
-        P[i].tidal_tensorps[2][2] +=
-        P[i].Mass / (All.ForceSoftening[P[i].Type] * All.ForceSoftening[P[i].Type] *
-                     All.ForceSoftening[P[i].Type]) * 10.666666666667;
-        
-        if(All.ComovingIntegrationOn)
-        {
-            P[i].tidal_tensorps[0][0] -= All.TidalCorrection/All.G;
-            P[i].tidal_tensorps[1][1] -= All.TidalCorrection/All.G;
-            P[i].tidal_tensorps[2][2] -= All.TidalCorrection/All.G;
-        }
-        /*now muliply by All.G */
-        for(i1 = 0; i1 < 3; i1++)
-            for(i2 = 0; i2 < 3; i2++)
-                P[i].tidal_tensorps[i1][i2] *= All.G;
-#endif /* GDE_DISTORTIONTENSOR */
         
 #ifdef EVALPOTENTIAL
         /* remove self-potential */
@@ -726,20 +689,6 @@ void gravity_tree(void)
             P[i].GravAccel[j] = 0;
     
     
-#ifdef GDE_DISTORTIONTENSOR
-    for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i])
-    {
-        P[i].tidal_tensorps[0][0] = 0.0;
-        P[i].tidal_tensorps[0][1] = 0.0;
-        P[i].tidal_tensorps[0][2] = 0.0;
-        P[i].tidal_tensorps[1][0] = 0.0;
-        P[i].tidal_tensorps[1][1] = 0.0;
-        P[i].tidal_tensorps[1][2] = 0.0;
-        P[i].tidal_tensorps[2][0] = 0.0;
-        P[i].tidal_tensorps[2][1] = 0.0;
-        P[i].tidal_tensorps[2][2] = 0.0;
-    }
-#endif
 #endif /* end of SELFGRAVITY_OFF */
     
     

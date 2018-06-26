@@ -107,6 +107,9 @@ void run(void)
 #endif
 
         /* flag particles which will be feedback centers, so kernel lengths can be computed for them */
+#ifdef GALSF_FB_MECHANICAL
+        determine_where_SNe_occur(); // for mechanical FB models
+#endif
 #ifdef GALSF_FB_THERMAL
         determine_where_addthermalFB_events_occur(); // (same, but for simple thermal feedback models)
 #endif
@@ -873,8 +876,7 @@ void write_cpu_log(void)
 #ifdef GRAIN_FLUID
           "grains        %10.2f  %5.1f%%\n"
 #endif
-          "gas_return    %10.2f  %5.1f%%\n"
-          "snII_fb_loop  %10.2f  %5.1f%%\n"
+          "mech_fb_loop  %10.2f  %5.1f%%\n"
           "hII_fb_loop   %10.2f  %5.1f%%\n"
           "localwindkik  %10.2f  %5.1f%%\n"
           "misc          %10.2f  %5.1f%%\n",
@@ -938,7 +940,6 @@ void write_cpu_log(void)
 #ifdef GRAIN_FLUID
     All.CPU_Sum[CPU_DRAGFORCE], (All.CPU_Sum[CPU_DRAGFORCE]) / All.CPU_Sum[CPU_ALL] * 100,
 #endif
-    All.CPU_Sum[CPU_GASRETURN], (All.CPU_Sum[CPU_GASRETURN]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_SNIIHEATING], (All.CPU_Sum[CPU_SNIIHEATING]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_HIIHEATING], (All.CPU_Sum[CPU_HIIHEATING]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_LOCALWIND], (All.CPU_Sum[CPU_LOCALWIND]) / All.CPU_Sum[CPU_ALL] * 100,

@@ -60,6 +60,9 @@ void force_kick_node(int i, MyDouble * dp)
   MyFloat v, vmax;
 
 
+#ifdef DM_SCALARFIELD_SCREENING
+  MyFloat dp_dm[3];
+#endif
 
 #ifdef NEUTRINOS
   if(P[i].Type == 2)
@@ -68,6 +71,12 @@ void force_kick_node(int i, MyDouble * dp)
 
   for(j = 0; j < 3; j++)
     {
+#ifdef DM_SCALARFIELD_SCREENING
+      if(P[i].Type != 0)
+	dp_dm[j] = dp[j];
+      else
+	dp_dm[j] = 0;
+#endif
     }
 
   for(j = 0, vmax = 0; j < 3; j++)
@@ -83,6 +92,9 @@ void force_kick_node(int i, MyDouble * dp)
       for(j = 0; j < 3; j++)
 	{
 	  Extnodes[no].dp[j] += dp[j];
+#ifdef DM_SCALARFIELD_SCREENING
+	  Extnodes[no].dp_dm[j] += dp_dm[j];
+#endif
 	}
 
       if(Extnodes[no].vmax < vmax)
@@ -117,6 +129,9 @@ void force_finish_kick_nodes(void)
   int *counts, *counts_dp, *offset_list, *offset_dp, *offset_vmax;
   MyLongDouble *domainDp_loc, *domainDp_all;
 
+#ifdef DM_SCALARFIELD_SCREENING
+  MyLongDouble *domainDp_dm_loc, *domainDp_dm_all;
+#endif
   MyFloat *domainVmax_loc, *domainVmax_all;
 
   /* share the momentum-data of the pseudo-particles accross CPUs */
@@ -128,6 +143,9 @@ void force_finish_kick_nodes(void)
   offset_vmax = (int *) mymalloc("offset_vmax", sizeof(int) * NTask);
 
   domainDp_loc = (MyLongDouble *) mymalloc("domainDp_loc", DomainNumChanged * 3 * sizeof(MyLongDouble));
+#ifdef DM_SCALARFIELD_SCREENING
+  domainDp_dm_loc = (MyLongDouble *) mymalloc("domainDp_dm_loc", DomainNumChanged * 3 * sizeof(MyLongDouble));
+#endif
   domainVmax_loc = (MyFloat *) mymalloc("domainVmax_loc", DomainNumChanged * sizeof(MyFloat));
 
   for(i = 0; i < DomainNumChanged; i++)
@@ -135,6 +153,9 @@ void force_finish_kick_nodes(void)
       for(j = 0; j < 3; j++)
 	{
 	  domainDp_loc[i * 3 + j] = Extnodes[DomainList[i]].dp[j];
+#ifdef DM_SCALARFIELD_SCREENING
+	  domainDp_dm_loc[i * 3 + j] = Extnodes[DomainList[i]].dp_dm[j];
+#endif
 	}
       domainVmax_loc[i] = Extnodes[DomainList[i]].vmax;
     }
@@ -162,6 +183,10 @@ void force_finish_kick_nodes(void)
     }
 
   domainDp_all = (MyLongDouble *) mymalloc("domainDp_all", totDomainNumChanged * 3 * sizeof(MyLongDouble));
+#ifdef DM_SCALARFIELD_SCREENING
+  domainDp_dm_all =
+    (MyLongDouble *) mymalloc("domainDp_dm_all", totDomainNumChanged * 3 * sizeof(MyLongDouble));
+#endif
   domainVmax_all = (MyFloat *) mymalloc("domainVmax_all", totDomainNumChanged * sizeof(MyFloat));
 
   domainList_all = (int *) mymalloc("domainList_all", totDomainNumChanged * sizeof(int));
@@ -179,6 +204,10 @@ void force_finish_kick_nodes(void)
   MPI_Allgatherv(domainDp_loc, DomainNumChanged * 3 * sizeof(MyLongDouble), MPI_BYTE,
 		 domainDp_all, counts_dp, offset_dp, MPI_BYTE, MPI_COMM_WORLD);
 
+#ifdef DM_SCALARFIELD_SCREENING
+  MPI_Allgatherv(domainDp_dm_loc, DomainNumChanged * 3 * sizeof(MyLongDouble), MPI_BYTE,
+		 domainDp_dm_all, counts_dp, offset_dp, MPI_BYTE, MPI_COMM_WORLD);
+#endif
 
   MPI_Allgatherv(domainVmax_loc, DomainNumChanged * sizeof(MyFloat), MPI_BYTE,
 		 domainVmax_all, counts, offset_vmax, MPI_BYTE, MPI_COMM_WORLD);
@@ -199,6 +228,9 @@ void force_finish_kick_nodes(void)
 	  for(j = 0; j < 3; j++)
 	    {
 	      Extnodes[no].dp[j] += domainDp_all[3 * i + j];
+#ifdef DM_SCALARFIELD_SCREENING
+	      Extnodes[no].dp_dm[j] += domainDp_dm_all[3 * i + j];
+#endif
 	    }
 
 	  if(Extnodes[no].vmax < domainVmax_all[i])
@@ -213,8 +245,14 @@ void force_finish_kick_nodes(void)
 
   myfree(domainList_all);
   myfree(domainVmax_all);
+#ifdef DM_SCALARFIELD_SCREENING
+  myfree(domainDp_dm_all);
+#endif
   myfree(domainDp_all);
   myfree(domainVmax_loc);
+#ifdef DM_SCALARFIELD_SCREENING
+  myfree(domainDp_dm_loc);
+#endif
   myfree(domainDp_loc);
   myfree(offset_vmax);
   myfree(offset_dp);
@@ -250,11 +288,23 @@ void force_drift_node(int no, int time1)
 	fac = 0;
 
 
+#ifdef DM_SCALARFIELD_SCREENING
+      double fac_dm;
+
+      if(Nodes[no].mass_dm)
+	fac_dm = 1 / Nodes[no].mass_dm;
+      else
+	fac_dm = 0;
+#endif
 
       for(j = 0; j < 3; j++)
 	{
 	  Extnodes[no].vs[j] += fac * FLT(Extnodes[no].dp[j]);
 	  Extnodes[no].dp[j] = 0;
+#ifdef DM_SCALARFIELD_SCREENING
+	  Extnodes[no].vs_dm[j] += fac_dm * FLT(Extnodes[no].dp_dm[j]);
+	  Extnodes[no].dp_dm[j] = 0;
+#endif
 
 	}
       Nodes[no].u.d.bitflags &= (~(1 << BITFLAG_NODEHASBEENKICKED));
@@ -274,6 +324,9 @@ void force_drift_node(int no, int time1)
     for(j = 0; j < 3; j++) {Nodes[no].u.d.s[j] += Extnodes[no].vs[j] * dt_drift;}
   Nodes[no].len += 2 * Extnodes[no].vmax * dt_drift;
 
+#ifdef DM_SCALARFIELD_SCREENING
+    for(j = 0; j < 3; j++) {Nodes[no].s_dm[j] += Extnodes[no].vs_dm[j] * dt_drift;}
+#endif
 
 
     

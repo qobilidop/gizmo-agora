@@ -190,8 +190,12 @@
 
 
 
+#if (defined(COOLING) && defined(GALSF) && defined(GALSF_FB_MECHANICAL)) && !defined(FIRE_UNPROTECT_FROZEN)
+#define PROTECT_FROZEN_FIRE
+#endif
+
 #ifdef PROTECT_FROZEN_FIRE
-#define USE_ORIGINAL_FIRE2_SNE_COUPLING_SCHEME // set to use the 'base' FIRE-2 SNe coupling. if commented out, will user newer version that more accurately manages the injected energy with neighbors moving to inject a specific target
+#define GALSF_USE_SNE_ONELOOP_SCHEME // set to use the 'base' FIRE-2 SNe coupling. if commented out, will user newer version that more accurately manages the injected energy with neighbors moving to inject a specific target
 #endif
 
 
@@ -271,7 +275,6 @@
 #endif
 
 
-
 /* force 'master' flags to be enabled for the appropriate methods, if we have enabled something using those methods */
 
 /* options for FIRE RT method */
@@ -287,7 +290,7 @@
 
 
 /* decide which diffusion method to use (for any diffusion-based method) */
-#if defined(RT_DIFFUSION) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(RT_DIFFUSION) && !defined(RT_DIFFUSION_EXPLICIT)
 #define RT_DIFFUSION_CG
 #endif
 /* check if flux-limiting is disabled: it should be on by default with diffusion-based methods */
@@ -295,10 +298,13 @@
 #define RT_FLUXLIMITER
 #endif
 /* check if we are -explicitly- evolving the radiation field, in which case we need to carry time-derivatives of the field */
+#if defined(RT_DIFFUSION_EXPLICIT)
+#define RT_EVOLVE_NGAMMA
+#endif
 
 /* enable radiation pressure forces unless they have been explicitly disabled */
 
-#if ((defined(RT_FLUXLIMITER) || defined(FLAG_NOT_IN_PUBLIC_CODE_FORCES) || defined(FLAG_NOT_IN_PUBLIC_CODE)) && !defined(RT_EVOLVE_FLUX)) && !defined(RT_EVOLVE_EDDINGTON_TENSOR)
+#if ((defined(RT_FLUXLIMITER) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(RT_DIFFUSION_EXPLICIT)) && !defined(FLAG_NOT_IN_PUBLIC_CODE)) && !defined(RT_EVOLVE_EDDINGTON_TENSOR)
 #define RT_EVOLVE_EDDINGTON_TENSOR
 #endif
 
@@ -312,9 +318,6 @@
 #define RT_SOURCES 16
 
 /* cooling must be enabled for RT cooling to function */
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_OLDFORMAT) && !defined(COOLING)
-#define COOLING
-#endif
 
 
 
@@ -428,7 +431,7 @@
 #define DOGRAD_SOUNDSPEED 1
 #endif
 
-#if defined(CONDUCTION) || defined(VISCOSITY) || defined(TURB_DIFFUSION) || defined(MHD_NON_IDEAL) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(FLAG_NOT_IN_PUBLIC_CODE_DISABLE_DIFFUSION)) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(RT_EVOLVE_FLUX))
+#if defined(CONDUCTION) || defined(VISCOSITY) || defined(TURB_DIFFUSION) || defined(MHD_NON_IDEAL) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(FLAG_NOT_IN_PUBLIC_CODE_DISABLE_DIFFUSION)) || (defined(RT_DIFFUSION_EXPLICIT) && !defined(FLAG_NOT_IN_PUBLIC_CODE))
 #ifndef DISABLE_SUPER_TIMESTEPPING
 //#define SUPER_TIMESTEP_DIFFUSION
 #endif
@@ -500,53 +503,6 @@ typedef  int integertime;
 #endif
 
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(RT_USE_GRAVTREE)
-#define RT_BIN0 (-1)
-
-#define RT_FREQ_BIN_H0 (RT_BIN0+0)
-
-#ifndef RT_PHOTOION_MULTIFREQUENCY
-#define RT_FREQ_BIN_He0 (RT_FREQ_BIN_H0+0)
-#define RT_FREQ_BIN_He1 (RT_FREQ_BIN_He0+0)
-#define RT_FREQ_BIN_He2 (RT_FREQ_BIN_He1+0)
-#else
-#define RT_FREQ_BIN_He0 (RT_FREQ_BIN_H0+1)
-#define RT_FREQ_BIN_He1 (RT_FREQ_BIN_He0+1)
-#define RT_FREQ_BIN_He2 (RT_FREQ_BIN_He1+1)
-#endif
-
-#define RT_FREQ_BIN_FIRE_UV (RT_FREQ_BIN_He2+0)
-#define RT_FREQ_BIN_FIRE_OPT (RT_FREQ_BIN_FIRE_UV+0)
-#define RT_FREQ_BIN_FIRE_IR (RT_FREQ_BIN_FIRE_OPT+0)
-
-#ifndef RT_SOFT_XRAY
-#define RT_FREQ_BIN_SOFT_XRAY (RT_FREQ_BIN_FIRE_IR+0)
-#else
-#define RT_FREQ_BIN_SOFT_XRAY (RT_FREQ_BIN_FIRE_IR+1)
-#endif
-
-#ifndef RT_HARD_XRAY
-#define RT_FREQ_BIN_HARD_XRAY (RT_FREQ_BIN_SOFT_XRAY+0)
-#else
-#define RT_FREQ_BIN_HARD_XRAY (RT_FREQ_BIN_SOFT_XRAY+1)
-#endif
-
-#define RT_FREQ_BIN_PHOTOELECTRIC (RT_FREQ_BIN_HARD_XRAY+0)
-
-#define RT_FREQ_BIN_LYMAN_WERNER (RT_FREQ_BIN_PHOTOELECTRIC+0)
-
-#define RT_FREQ_BIN_NUV (RT_FREQ_BIN_LYMAN_WERNER+0)
-
-#define RT_FREQ_BIN_OPTICAL_NIR (RT_FREQ_BIN_NUV+0)
-
-
-/* be sure to add all new wavebands to these lists, or else we will run into problems */
-/* ALSO, the IR bin here should be the last bin: add additional bins ABOVE this line */
-#define RT_FREQ_BIN_INFRARED (RT_FREQ_BIN_OPTICAL_NIR+0)
-
-#define N_RT_FREQ_BINS (RT_FREQ_BIN_INFRARED+1)
-
-#endif // #if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(RT_USE_GRAVTREE)
 
 
 #ifndef  MULTIPLEDOMAINS
@@ -833,17 +789,16 @@ typedef MyDouble MyBigFloat;
 #define CPU_BLACKHOLES     28
 #define CPU_MISC           29
 #define CPU_DRAGFORCE      30
-#define CPU_GASRETURN      31
-#define CPU_SNIIHEATING    32
-#define CPU_HIIHEATING     33
-#define CPU_LOCALWIND      34
-#define CPU_HYDNETWORK     35
-#define CPU_AGSDENSCOMPUTE 36
-#define CPU_AGSDENSWAIT    37
-#define CPU_AGSDENSCOMM    38
-#define CPU_AGSDENSMISC    39
-#define CPU_SIDMSCATTER    40
-#define CPU_PARTS          41  /* this gives the number of parts above (must be last) */
+#define CPU_SNIIHEATING    31
+#define CPU_HIIHEATING     32
+#define CPU_LOCALWIND      33
+#define CPU_HYDNETWORK     34
+#define CPU_AGSDENSCOMPUTE 35
+#define CPU_AGSDENSWAIT    36
+#define CPU_AGSDENSCOMM    37
+#define CPU_AGSDENSMISC    38
+#define CPU_SIDMSCATTER    39
+#define CPU_PARTS          40  /* this gives the number of parts above (must be last) */
 
 #define CPU_STRING_LEN 120
 
@@ -1137,12 +1092,10 @@ extern FILE
 #ifdef GALSF
 extern FILE *FdSfr;		/*!< file handle for sfr.txt log-file. */
 #endif
+#ifdef GALSF_FB_MECHANICAL
+extern FILE *FdSneIIHeating;	/*!< file handle for SNIIheating.txt log-file */
+#endif
 
-#ifdef GDE_DISTORTIONTENSOR
-#ifdef PMGRID
-extern FILE *FdTidaltensor;     /*!< file handle for tidaltensor.txt log-file. */
-#endif
-#endif
 
 #ifdef BLACK_HOLES
 extern FILE *FdBlackHoles;	/*!< file handle for blackholes.txt log-file. */
@@ -1214,6 +1167,10 @@ extern struct global_data_all_processes
 				   the maximum(!) number of particles.  Note: A typical local tree for N
 				   particles needs usually about ~0.65*N nodes. */
 
+#ifdef DM_SCALARFIELD_SCREENING
+  double ScalarBeta;
+  double ScalarScreeningLength;
+#endif
 
   /* some SPH parameters */
 
@@ -1262,9 +1219,6 @@ extern struct global_data_all_processes
 				   units specified. Otherwise the value provided is taken as internal gravity
 				   constant G. */
     G;				/*!< Gravity-constant in internal units */
-#ifdef GDE_DISTORTIONTENSOR
-  double UnitDensity_in_Gev_per_cm3; /*!< factor to convert internal density unit to GeV/c^2 / cm^3 */
-#endif
     /* Cosmology */
 
 #ifdef MAGNETIC
@@ -1437,9 +1391,6 @@ extern struct global_data_all_processes
 
 
     
-#ifdef RT_EVOLVE_INTENSITIES
-    double RT_Intensity_Direction[N_RT_INTENSITY_BINS][3];
-#endif
 
     
     
@@ -1453,11 +1404,6 @@ extern struct global_data_all_processes
     
 
     
-#ifdef GDE_DISTORTIONTENSOR
-  /* present day velocity dispersion of DM particle in cm/s (e.g. Neutralino = 0.03 cm/s) */
-  double DM_velocity_dispersion;
-  double TidalCorrection;
-#endif
 
 #ifdef GALSF		/* star formation and feedback sector */
   double CritOverDensity;
@@ -1496,13 +1442,11 @@ extern struct global_data_all_processes
 
 #endif // GALSF
 
-    
-#if defined(COOL_METAL_LINES_BY_SPECIES) || defined(COOL_GRACKLE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
+#if defined(COOL_METAL_LINES_BY_SPECIES) || defined(COOL_GRACKLE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_MECHANICAL) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
   double InitMetallicityinSolar;
   double InitStellarAgeinGyr;
 #endif
 
-    
 #if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
     double BAL_f_accretion;
     double BAL_v_outflow;
@@ -1676,28 +1620,6 @@ extern ALIGN(32) struct particle_data
 #endif
 #endif
     
-#ifdef GDE_DISTORTIONTENSOR
-    MyBigFloat distortion_tensorps[6][6];               /*!< phase space distortion tensor */
-    MyBigFloat last_determinant;                        /*!< last real space distortion tensor determinant */
-    MyBigFloat stream_density;                          /*!< physical stream density that is going to be integrated */
-    double tidal_tensorps[3][3];                        /*!< tidal tensor (=second derivatives of grav. potential) */
-    float caustic_counter;                              /*!< caustic counter */
-    MyBigFloat annihilation;                            /*!< integrated annihilation rate */
-    MyBigFloat analytic_annihilation;                   /*!< analytically integrated annihilation rate */
-    MyBigFloat rho_normed_cutoff_current;               /*!< current and last normed_cutoff density in rho_max/rho_init * sqrt(sigma) */
-    MyBigFloat rho_normed_cutoff_last;
-    MyBigFloat s_1_current, s_2_current, s_3_current;   /*! < current and last stretching factor */
-    MyBigFloat s_1_last, s_2_last, s_3_last;
-    MyBigFloat second_deriv_current;                    /*! < current and last second derivative */
-    MyBigFloat second_deriv_last;
-    double V_matrix[3][3];                              /*!< initial orientation of CDM sheet the particle is embedded in */
-    float init_density;                                 /*!< initial stream density */
-    float analytic_caustics;                            /*!< number of caustics that were integrated analytically */
-    float a0;
-#ifdef PMGRID
-    double tidal_tensorpsPM[3][3];	            /*!< for TreePM simulations, long range tidal field */
-#endif
-#endif // GDE_DISTORTIONTENSOR // 
     
     
 #ifdef GALSF
@@ -1725,8 +1647,12 @@ extern ALIGN(32) struct particle_data
     MyFloat KernelSum_Around_RT_Source; /*!< kernel summation around sources for radiation injection (save so can be different from 'density') */
 #endif
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
+#if defined(GALSF_FB_MECHANICAL) || defined(GALSF_FB_THERMAL)
     MyFloat SNe_ThisTimeStep; /* flag that indicated number of SNe for the particle in the timestep */
+#endif
+#ifdef GALSF_FB_MECHANICAL
+#define AREA_WEIGHTED_SUM_ELEMENTS 11 /* number of weights needed for full momentum-and-energy conserving system */
+    MyFloat Area_weighted_sum[AREA_WEIGHTED_SUM_ELEMENTS]; /* normalized weights for particles in kernel weighted by area, not mass */
 #endif
     
 #if defined(GRAIN_FLUID)
@@ -2086,11 +2012,11 @@ extern struct data_nodelist
 extern struct gravdata_in
 {
     MyFloat Pos[3];
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     MyFloat Mass;
 #endif
     int Type;
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     MyFloat Soft;
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
     MyFloat AGS_zeta;
@@ -2108,9 +2034,6 @@ extern struct gravdata_out
     MyLongDouble Acc[3];
 #ifdef EVALPOTENTIAL
     MyLongDouble Potential;
-#endif
-#ifdef GDE_DISTORTIONTENSOR
-    MyLongDouble tidal_tensorps[3][3];
 #endif
 #ifdef BH_CALC_DISTANCES
     MyFloat min_dist_to_bh;
@@ -2449,9 +2372,6 @@ extern ALIGN(32) struct NODE
   double GravCost;
   integertime Ti_current;
 
-#ifdef RT_USE_GRAVTREE
-  MyFloat stellar_lum[N_RT_FREQ_BINS]; /*!< luminosity in the node*/
-#endif
 
 
 #ifdef BH_CALC_DISTANCES
@@ -2462,6 +2382,10 @@ extern ALIGN(32) struct NODE
     
   MyFloat maxsoft;		/*!< hold the maximum gravitational softening of particle in the node */
   
+#ifdef DM_SCALARFIELD_SCREENING
+  MyFloat s_dm[3];
+  MyFloat mass_dm;
+#endif
 }
  *Nodes_base,			/*!< points to the actual memory allocted for the nodes */
  *Nodes;			/*!< this is a pointer used to access the nodes which is shifted such that Nodes[All.MaxPart]
@@ -2471,6 +2395,10 @@ extern ALIGN(32) struct NODE
 extern struct extNODE
 {
   MyLongDouble dp[3];
+#ifdef DM_SCALARFIELD_SCREENING
+  MyLongDouble dp_dm[3];
+  MyFloat vs_dm[3];
+#endif
   MyFloat vs[3];
   MyFloat vmax;
   MyFloat hmax;			/*!< maximum gas kernel length in node. Only used for gas particles */

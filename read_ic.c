@@ -8,6 +8,9 @@
 
 #include "allvars.h"
 #include "proto.h"
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE)
+#include "subfind/subfind.h"
+#endif
 
 /* This function reads initial conditions that are in the default file format
  * of Gadget, i.e. snapshot files can be used as input files.  However, when a
@@ -30,6 +33,10 @@
  * by Phil Hopkins (phopkins@caltech.edu) for GIZMO.
  */
 
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE)
+static unsigned long FileNr;
+static long long *NumPartPerFile;
+#endif
 
 
 void read_ic(char *fname)
@@ -55,6 +62,14 @@ void read_ic(char *fname)
     
     num_files = find_files(fname);
     
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE)
+    NumPartPerFile = (long long *) mymalloc("NumPartPerFile", num_files * sizeof(long long));
+    
+    if(ThisTask == 0)
+        get_particle_numbers(fname, num_files);
+    
+    MPI_Bcast(NumPartPerFile, num_files * sizeof(long long), MPI_BYTE, 0, MPI_COMM_WORLD);
+#endif
     
     rest_files = num_files;
     
@@ -62,6 +77,9 @@ void read_ic(char *fname)
     {
         sprintf(buf, "%s.%d", fname, ThisTask + (rest_files - NTask));
         if(All.ICFormat == 3) {sprintf(buf, "%s.%d.hdf5", fname, ThisTask + (rest_files - NTask));}
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE)
+        FileNr = ThisTask + (rest_files - NTask);
+#endif
         
         ngroups = NTask / All.NumFilesWrittenInParallel;
         if((NTask % All.NumFilesWrittenInParallel))
@@ -88,12 +106,18 @@ void read_ic(char *fname)
             sprintf(buf, "%s.%d", fname, filenr);
             if(All.ICFormat == 3)
                 sprintf(buf, "%s.%d.hdf5", fname, filenr);
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE)
+            FileNr = filenr;
+#endif
         }
         else
         {
             sprintf(buf, "%s", fname);
             if(All.ICFormat == 3)
                 sprintf(buf, "%s.hdf5", fname);
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE)
+            FileNr = 0;
+#endif
         }
         
         ngroups = rest_files / All.NumFilesWrittenInParallel;
@@ -109,6 +133,9 @@ void read_ic(char *fname)
     }
     
     
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE)
+    subfind_reshuffle_free();
+#endif
     
     myfree(CommBuffer);
     
@@ -149,7 +176,7 @@ void read_ic(char *fname)
     }
 #endif
     
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
+#if defined(GALSF_FB_MECHANICAL) || defined(GALSF_FB_THERMAL)
     if(RestartFlag == 0)
     {
         All.MassTable[2] = 0;
@@ -492,10 +519,6 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
             break;
 
         case IO_COSMICRAY_ALFVEN:
-#ifdef COSMIC_RAYS_ALFVEN
-            for(n = 0; n < pc; n++)
-                for(k = 0; k < 2; k++) {SphP[offset + n].CosmicRayAlfvenEnergy[k] = *fp++;}
-#endif
             break;
 
         case IO_OSTAR:
@@ -968,6 +991,10 @@ void read_file(char *fname, int readTask, int lastTask)
                                         }
                                         else
                                         {
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE) && !defined(FLAG_NOT_IN_PUBLIC_CODE_DENSITY_AND_POTENTIAL)
+                                            read_hsml_files(CommBuffer, pc, blocknr,
+                                                            NumPartPerFile[FileNr] + nread);
+#endif
                                             nread += pc;
                                         }
                                     }
@@ -1226,6 +1253,98 @@ int find_files(char *fname)
     return 0;
 }
 
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE)
+void get_particle_numbers(char *fname, int num_files)
+{
+    char buf[1000];
+    long blksize1, blksize2;
+    char label[4];
+    long nextblock;
+    long i, j;
+    
+    printf("num_files=%d\n", num_files);
+    
+    for(i = 0; i < num_files; i++)
+    {
+        if(num_files > 1)
+        {
+            sprintf(buf, "%s.%d", fname, i);
+            if(All.ICFormat == 3)
+                sprintf(buf, "%s.%d.hdf5", fname, i);
+        }
+        else
+        {
+            sprintf(buf, "%s", fname);
+            if(All.ICFormat == 3)
+                sprintf(buf, "%s.hdf5", fname);
+        }
+        
+#define SKIP  {my_fread(&blksize1,sizeof(int),1,fd);}
+#define SKIP2  {my_fread(&blksize2,sizeof(int),1,fd);}
+        
+        if(All.ICFormat == 1 || All.ICFormat == 2)
+        {
+            FILE *fd;
+            
+            if(!(fd = fopen(buf, "r")))
+            {
+                printf("can't open file `%s' for reading initial conditions.\n", buf);
+                endrun(1239);
+            }
+            
+            if(All.ICFormat == 2)
+            {
+                SKIP;
+                my_fread(&label, sizeof(char), 4, fd);
+                my_fread(&nextblock, sizeof(int), 1, fd);
+                SKIP2;
+            }
+            
+            SKIP;
+            my_fread(&header, sizeof(header), 1, fd);
+            SKIP2;
+            if(blksize1 != 256 || blksize2 != 256)
+            {
+                printf("incorrect header format\n");
+                fflush(stdout);
+                endrun(890);
+            }
+            fclose(fd);
+        }
+        
+#ifdef HAVE_HDF5
+        if(All.ICFormat == 3)
+        {
+            read_header_attributes_in_hdf5(buf);
+        }
+#endif
+        
+        NumPartPerFile[i] = 0;
+        
+        for(j = 0; j < 6; j++)
+        {
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE)
+            if(((1 << j) & (FOF_PRIMARY_LINK_TYPES)))
+#endif
+                NumPartPerFile[i] += header.npart[j];
+        }
+        
+        printf("File=%4d:  NumPart= %d\n", i, (int) (NumPartPerFile[i]));
+    }
+    
+    
+    long long n, sum;
+    
+    for(i = 0, sum = 0; i < num_files; i++)
+    {
+        n = NumPartPerFile[i];
+        
+        NumPartPerFile[i] = sum;
+        
+        sum += n;
+    }
+}
+#endif
 
 
 

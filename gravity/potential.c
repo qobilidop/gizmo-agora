@@ -78,9 +78,11 @@ void compute_potential(void)
     DataIndexTable = (struct data_index *) mymalloc("DataIndexTable", All.BunchSize * sizeof(struct data_index));
     DataNodeList = (struct data_nodelist *) mymalloc("DataNodeList", All.BunchSize * sizeof(struct data_nodelist));
 
+#ifndef FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_AND_POTENTIAL
   for(i = 0; i < NumPart; i++)
     if(P[i].Ti_current != All.Ti_Current)
       drift_particle(i, All.Ti_Current);
+#endif
   i = 0;			/* beginn with this index */
 
   do
@@ -128,10 +130,10 @@ void compute_potential(void)
         }
 
         GravDataIn[j].Type = P[place].Type;
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         GravDataIn[j].Mass = P[place].Mass;
 #endif
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL)
         double h_place = PPP[place].Hsml;
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
         h_place = PPP[place].AGS_Hsml;
@@ -143,7 +145,7 @@ void compute_potential(void)
             GravDataIn[j].Soft = All.ForceSoftening[P[place].Type];
         }
 #endif
-#if defined(ADAPTIVE_GRAVSOFT_FORGAS) && !defined(RT_USE_GRAVTREE)
+#if defined(ADAPTIVE_GRAVSOFT_FORGAS) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
         if((P[place].Type == 0) && (PPP[place].Hsml > All.ForceSoftening[P[place].Type]))
         {
             GravDataIn[j].Soft = PPP[place].Hsml;

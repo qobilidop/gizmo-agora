@@ -191,7 +191,7 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
     double tcool, u;
 #endif
     
-#if (defined(OUTPUT_DISTORTIONTENSOR) || defined(FLAG_NOT_IN_PUBLIC_CODE))
+#if (defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE))
     MyBigFloat half_kick_add[6][6];
     int l;
 #endif
@@ -215,9 +215,6 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
         dt_gravkick_pm = (All.Ti_Current - (All.PM_Ti_begstep + All.PM_Ti_endstep) / 2) * All.Timebase_interval;
 #endif
     
-#ifdef GDE_DISTORTIONTENSOR
-    MyBigFloat flde, psde;
-#endif
     
     fp = (MyOutputFloat *) CommBuffer;
     fp_single = (float *) CommBuffer;
@@ -514,7 +511,7 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             break;
             
         case IO_POT:		/* gravitational potential */
-#if defined(OUTPUT_POTENTIAL)  || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(OUTPUT_POTENTIAL)  || defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_AND_POTENTIAL)
             for(n = 0; n < pc; pindex++)
                 if(P[pindex].Type == type)
                 {
@@ -670,15 +667,6 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             break;
 
         case IO_COSMICRAY_ALFVEN:    /* energy in the resonant (~gyro-radii) Alfven modes field, in the +/- (with respect to B) fields  */
-#ifdef COSMIC_RAYS_ALFVEN
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    for(k = 0; k < 2; k++)
-                        *fp++ = SphP[pindex].CosmicRayAlfvenEnergyPred[k];
-                    n++;
-                }
-#endif
             break;
 
             
@@ -832,87 +820,26 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             
         case IO_GDE_DISTORTIONTENSOR:
             /* full 6D phase-space distortion tensor from GDE integration */
-#ifdef OUTPUT_DISTORTIONTENSOR
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    get_half_kick_distortion(pindex, half_kick_add);
-                    for(k = 0; k < 6; k++)
-                    {
-                        for(l = 0; l < 6; l++)
-                        {
-                            fp[k * 6 + l] = (MyOutputFloat) (P[pindex].distortion_tensorps[k][l] + half_kick_add[k][l]);
-                        }
-                    }
-                    n++;
-                    fp += 36;
-                    
-                }
-#endif
             break;
             
         case IO_CAUSTIC_COUNTER:
             /* caustic counter */
-#ifdef GDE_DISTORTIONTENSOR
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    *fp++ = (MyOutputFloat) P[pindex].caustic_counter;
-                    n++;
-                }
-#endif
             break;
             
         case IO_FLOW_DETERMINANT:
             /* physical NON-CUTOFF corrected stream determinant = 1.0/normed stream density * 1.0/initial stream density */
-#if defined(GDE_DISTORTIONTENSOR) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    get_current_ps_info(pindex, &flde, &psde);
-                    *fp++ = (MyOutputFloat) flde;
-                    n++;
-                }
-#endif
             break;
             
         case IO_STREAM_DENSITY:
             /* physical CUTOFF corrected stream density = normed stream density * initial stream density */
-#ifdef GDE_DISTORTIONTENSOR
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    *fp++ = (MyOutputFloat) (P[pindex].stream_density);
-                    n++;
-                }
-#endif
             break;
             
         case IO_PHASE_SPACE_DETERMINANT:
             /* determinant of phase-space distortion tensor -> should be 1 due to Liouville theorem */
-#ifdef GDE_DISTORTIONTENSOR
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    get_current_ps_info(pindex, &flde, &psde);
-                    *fp++ = (MyOutputFloat) psde;
-                    n++;
-                }
-#endif
             break;
             
         case IO_ANNIHILATION_RADIATION:
             /* time integrated stream density in physical units */
-#if defined(GDE_DISTORTIONTENSOR) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    *fp++ = (MyOutputFloat) (P[pindex].annihilation * GDE_INITDENSITY(pindex));
-                    *fp++ = (MyOutputFloat) (P[pindex].analytic_caustics);
-                    *fp++ = (MyOutputFloat) (P[pindex].analytic_annihilation * GDE_INITDENSITY(pindex));
-                    n++;
-                }
-#endif
             break;
             
         case IO_LAST_CAUSTIC:
@@ -921,37 +848,10 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             
         case IO_SHEET_ORIENTATION:
             /* initial orientation of the CDM sheet where the particle started */
-#if defined(GDE_DISTORTIONTENSOR) && (!defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE))
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,0,0);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,0,1);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,0,2);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,1,0);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,1,1);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,1,2);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,2,0);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,2,1);
-                    *fp++ = (MyOutputFloat) GDE_VMATRIX(pindex,2,2);
-                    n++;
-                }
-#endif
             break;
             
         case IO_INIT_DENSITY:
             /* initial stream density in physical units  */
-#if defined(GDE_DISTORTIONTENSOR) && (!defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE))
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    if(All.ComovingIntegrationOn)
-                        *fp++ = GDE_INITDENSITY(pindex) / (GDE_TIMEBEGIN(pindex) * GDE_TIMEBEGIN(pindex) * GDE_TIMEBEGIN(pindex));
-                    else
-                        *fp++ = GDE_INITDENSITY(pindex);
-                    n++;
-                }
-#endif
             break;
             
         case IO_SECONDORDERMASS:
@@ -1065,15 +965,6 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             break;
             
         case IO_RAD_ACCEL:
-#ifdef RT_RAD_PRESSURE_OUTPUT
-            for(n = 0; n < pc; pindex++)
-                if(P[pindex].Type == type)
-                {
-                    for(k = 0; k < 3; k++) {fp[k] = SphP[pindex].RadAccel[k];}                    
-                    n++;
-                    fp += 3;
-                }
-#endif
             break;
             
         case IO_EDDINGTON_TENSOR:
@@ -2024,11 +1915,7 @@ int blockpresent(enum iofields blocknr)
             break;
             
         case IO_RAD_ACCEL:
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_OUTPUT)
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_HSMS:
             return 0;
@@ -2100,7 +1987,7 @@ int blockpresent(enum iofields blocknr)
             break;
             
         case IO_POT:
-#if defined(OUTPUT_POTENTIAL) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(OUTPUT_POTENTIAL) || defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_AND_POTENTIAL)
             return 1;
 #else
             return 0;
@@ -2216,11 +2103,7 @@ int blockpresent(enum iofields blocknr)
             break;
 
         case IO_COSMICRAY_ALFVEN:
-#ifdef COSMIC_RAYS_ALFVEN
-            return 1;
-#else
             return 0;
-#endif
             break;
 
             
@@ -2324,63 +2207,31 @@ int blockpresent(enum iofields blocknr)
         case IO_TIDALTENSORPS:
             return 0;
         case IO_GDE_DISTORTIONTENSOR:
-#ifdef OUTPUT_DISTORTIONTENSOR
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_CAUSTIC_COUNTER:
-#ifdef GDE_DISTORTIONTENSOR
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_FLOW_DETERMINANT:
-#if defined(GDE_DISTORTIONTENSOR) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_STREAM_DENSITY:
-#ifdef GDE_DISTORTIONTENSOR
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_PHASE_SPACE_DETERMINANT:
-#ifdef GDE_DISTORTIONTENSOR
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_ANNIHILATION_RADIATION:
-#if defined(GDE_DISTORTIONTENSOR) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_LAST_CAUSTIC:
             return 0;
             
         case IO_SHEET_ORIENTATION:
-#if defined(GDE_DISTORTIONTENSOR) && (!defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE))
-            return 1;
-#else
             return 0;
-#endif
             
         case IO_INIT_DENSITY:
-#if defined(GDE_DISTORTIONTENSOR) && (!defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE))
-            return 1;
-#else
             return 0;
-#endif
             
             
         case IO_SECONDORDERMASS:
@@ -3939,4 +3790,51 @@ void mpi_printf(const char *fmt, ...)
     }
 }
 
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_READ_FOF) || defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_CATALOGUE)
+int io_compare_P_ID(const void *a, const void *b)
+{
+    if(((struct particle_data *) a)->ID < (((struct particle_data *) b)->ID))
+        return -1;
+    
+    if(((struct particle_data *) a)->ID > (((struct particle_data *) b)->ID))
+        return +1;
+    
+    return 0;
+}
+
+int io_compare_P_GrNr_SubNr(const void *a, const void *b)
+{
+    if(((struct particle_data *) a)->GrNr < (((struct particle_data *) b)->GrNr))
+        return -1;
+    
+    if(((struct particle_data *) a)->GrNr > (((struct particle_data *) b)->GrNr))
+        return +1;
+    
+    if(((struct particle_data *) a)->SubNr < (((struct particle_data *) b)->SubNr))
+        return -1;
+    
+    if(((struct particle_data *) a)->SubNr > (((struct particle_data *) b)->SubNr))
+        return +1;
+    
+    return 0;
+}
+
+int io_compare_P_GrNr_ID(const void *a, const void *b)
+{
+    if(((struct particle_data *) a)->GrNr < (((struct particle_data *) b)->GrNr))
+        return -1;
+    
+    if(((struct particle_data *) a)->GrNr > (((struct particle_data *) b)->GrNr))
+        return +1;
+    
+    if(((struct particle_data *) a)->ID < (((struct particle_data *) b)->ID))
+        return -1;
+    
+    if(((struct particle_data *) a)->ID > (((struct particle_data *) b)->ID))
+        return +1;
+    
+    return 0;
+}
+
+#endif
 

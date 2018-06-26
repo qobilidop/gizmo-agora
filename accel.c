@@ -133,19 +133,20 @@ void compute_stellar_feedback(void)
 {
     CPU_Step[CPU_MISC] += measure_time();
 
-    /* first, check the mechanical sources of feedback */
-    
-    
-    /* alternatively use the pure-thermal/scalar sub-grid feedback model */
+#ifdef GALSF_FB_MECHANICAL /* check the mechanical sources of feedback */
+#ifndef GALSF_USE_SNE_ONELOOP_SCHEME
+    mechanical_fb_calc(-2); /* compute weights for coupling [first weight-calculation pass] */
+#endif
+    mechanical_fb_calc(-1); /* compute weights for coupling [second weight-calculation pass] */
+    CPU_Step[CPU_SNIIHEATING] += measure_time();
+    mechanical_fb_calc(0); /* actually do the mechanical feedback coupling */
+    CPU_Step[CPU_SNIIHEATING] += measure_time();
+#endif
 #ifdef GALSF_FB_THERMAL
-    thermal_fb_calc();
+    thermal_fb_calc(); /* thermal feedback */
+    CPU_Step[CPU_SNIIHEATING] += measure_time();
 #endif
     
-    /* alternatively use the 'turn off cooling' sub-grid feedback model */
-    
-    /* now do the local photo-ionization heating */
-    
-    /* finally (if we're not doing it in the star formation routine), do the local radiation pressure */
     
     CPU_Step[CPU_MISC] += measure_time();
 }

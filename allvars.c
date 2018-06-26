@@ -213,12 +213,10 @@ FILE
 #ifdef GALSF
 FILE *FdSfr;			/*!< file handle for sfr.txt log-file. */
 #endif
+#ifdef GALSF_FB_MECHANICAL
+FILE *FdSneIIHeating;	/*!< file handle for SNIIheating.txt log-file */
+#endif
 
-#ifdef GDE_DISTORTIONTENSOR
-#ifdef PMGRID
-FILE *FdTidaltensor;		/*!< file handle for Tidaltensor.txt log-file. */
-#endif
-#endif
 
 #ifdef BLACK_HOLES
 FILE *FdBlackHoles;		/*!< file handle for blackholes.txt log-file. */

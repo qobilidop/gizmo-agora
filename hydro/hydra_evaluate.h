@@ -111,9 +111,6 @@ int hydro_evaluate(int target, int mode, int *exportflag, int *exportnodecount, 
     double Fluxes_E_gamma[N_RT_FREQ_BINS];
     double tau_c_i[N_RT_FREQ_BINS];
     for(k=0;k<N_RT_FREQ_BINS;k++) {tau_c_i[k] = Particle_Size_i * local.Kappa_RT[k]*local.Density*All.cf_a3inv;}
-#ifdef RT_EVOLVE_FLUX
-    double Fluxes_Flux[N_RT_FREQ_BINS][3];
-#endif
 #endif
 
     
@@ -364,6 +361,9 @@ int hydro_evaluate(int target, int mode, int *exportflag, int *exportnodecount, 
 #endif
                 
                 
+#ifdef RT_DIFFUSION_EXPLICIT
+#include "../radiation/rt_diffusion_explicit.h"
+#endif
                 
                 
                 /* --------------------------------------------------------------------------------- */

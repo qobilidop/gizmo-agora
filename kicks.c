@@ -112,9 +112,6 @@ void apply_long_range_kick(integertime tstart, integertime tend)
                 P[i].Vel[j] += dvel[j];
                 P[i].dp[j] += P[i].Mass * dvel[j];
             }
-#ifdef GDE_DISTORTIONTENSOR
-        do_long_range_phase_space_kick(i, dt_gravkick);
-#endif
     }
 }
 #endif
@@ -290,9 +287,6 @@ void do_the_kick(int i, integertime tstart, integertime tend, integertime tcurre
 #ifdef TURB_DRIVING
                 dp[j] += mass_pred * SphP[i].TurbAccel[j] * dt_gravkick;
 #endif
-#ifdef RT_RAD_PRESSURE_OUTPUT
-                dp[j] += mass_pred * SphP[i].RadAccel[j] * All.cf_atime * dt_hydrokick;
-#endif
             }
             dp[j] += mass_pred * P[i].GravAccel[j] * dt_gravkick;
             P[i].Vel[j] += dp[j] / mass_new; /* correctly accounts for mass change if its allowed */
@@ -349,10 +343,6 @@ void do_the_kick(int i, integertime tstart, integertime tend, integertime tcurre
         
         /* set the momentum shift so we know how to move the tree! */
         for(j=0;j<3;j++) {P[i].dp[j] += dp[j];}
-#ifdef GDE_DISTORTIONTENSOR
-        /* momentum-space correction for following phase-space distribution (call after momentum-space kicks) */
-        do_the_phase_space_kick(i, dt_gravkick);
-#endif
         
     } // if(TimeBinActive[P[i].TimeBin]) //
 }
@@ -376,14 +366,8 @@ void set_predicted_sph_quantities_for_extra_physics(int i)
         for(kf=0;kf<N_RT_FREQ_BINS;kf++)
         {
             SphP[i].E_gamma_Pred[kf] = SphP[i].E_gamma[kf];
-#if defined(RT_EVOLVE_FLUX)
-            for(k=0;k<3;k++) SphP[i].Flux_Pred[kf][k] = SphP[i].Flux[kf][k];
-#endif
         }
         rt_eddington_update_calculation(i);
-#endif
-#ifdef RT_EVOLVE_INTENSITIES
-        for(kf=0;kf<N_RT_FREQ_BINS;kf++) {for(k=0;k<N_RT_INTENSITY_BINS;k++) {SphP[i].Intensity_Pred[kf][k] = SphP[i].Intensity[kf][k];}}
 #endif
 
 #ifdef EOS_ELASTIC

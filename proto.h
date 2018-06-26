@@ -435,9 +435,6 @@ void process_wake_ups(void);
 #endif
 
 void set_units_sfr(void);
-#ifdef BH_SEED_FROM_LOCALGAS
-double return_probability_of_this_forming_bh_from_seed_model(int i);
-#endif
 
 void gravity_forcetest(void);
 
@@ -458,16 +455,37 @@ void do_turb_driving_step_second_half(void);
 
 double evaluate_NH_from_GradRho(MyFloat gradrho[3], double hsml, double rho, double numngb_ndim, double include_h);
 
+
 #ifdef GALSF
 double evaluate_stellar_age_Gyr(double stellar_tform);
-double evaluate_l_over_m_ssp(double stellar_age_in_gyr);
-double calculate_relative_light_to_mass_ratio_from_imf(int i);
+double evaluate_light_to_mass_ratio(double stellar_age_in_gyr, int i);
+double calculate_relative_light_to_mass_ratio_from_imf(double stellar_age_in_gyr, int i);
+double calculate_individual_stellar_luminosity(double mdot, double mass, long i);
+double return_probability_of_this_forming_bh_from_seed_model(int i);
+
+// this structure needs to be defined here, because routines for feedback event rates, etc, are shared among files //
+struct addFBdata_in
+{
+    MyDouble Pos[3], Vel[3], Msne, unit_mom_SNe;
+    MyFloat Hsml, V_i, SNe_v_ejecta;
+#ifdef GALSF_FB_MECHANICAL
+    MyFloat Area_weighted_sum[AREA_WEIGHTED_SUM_ELEMENTS];
 #endif
+#ifdef METALS
+    MyDouble yields[NUM_METAL_SPECIES];
+#endif
+    int NodeList[NODELISTLENGTH];
+}
+*AddFBDataIn, *AddFBDataGet;
+
+void particle2in_addFB_fromstars(struct addFBdata_in *in, int i, int fb_loop_iteration);
+double mechanical_fb_calculate_eventrates(int i, double dt);
+#endif
+
 
 #ifdef GRAIN_FLUID
 void apply_grain_dragforce(void);
 #endif
-
 
 #if defined(FLAG_NOT_IN_PUBLIC_CODE) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && defined(GALSF))
 double particle_ionizing_luminosity_in_cgs(long i);
@@ -475,6 +493,13 @@ double particle_ionizing_luminosity_in_cgs(long i);
 
 
 
+#ifdef GALSF_FB_MECHANICAL
+void determine_where_SNe_occur(void);
+void mechanical_fb_calc(int feedback_type);
+int addFB_evaluate(int target, int mode, int *exportflag, int *exportnodecount, int *exportindex, int *ngblist, int feedback_type);
+void *addFB_evaluate_primary(void *p, int feedback_type);
+void *addFB_evaluate_secondary(void *p, int feedback_type);
+#endif
 
 #ifdef GALSF_FB_THERMAL
 void determine_where_addthermalFB_events_occur(void);
@@ -495,7 +520,7 @@ char *GetMultiSpeciesFilename(int i, int hk);
 #endif
 
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_SUBGRID_WINDS)
+#if defined(GALSF_SUBGRID_WINDS)
 void assign_wind_kick_from_sf_routine(int i, double sm, double dtime, double* pvtau_return);
 #endif
 
@@ -629,14 +654,6 @@ double enclosed_mass(double R);
 void pm_setup_nonperiodic_kernel(void);
 
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(RT_USE_GRAVTREE)
-int rt_get_source_luminosity(int i, double sigma_0, double *lum);
-double rt_kappa(int j, int k_freq);
-double rt_absorption_rate(int i, int k_freq);
-double rt_diffusion_coefficient(int i, int k_freq);
-void rt_eddington_update_calculation(int j);
-void rt_update_driftkick(int i, double dt_entr, int mode);
-#endif
 #ifdef RT_SOURCE_INJECTION
 void rt_source_injection(void);
 #endif
@@ -645,45 +662,6 @@ void rt_source_injection(void);
 
 void find_block(char *label,FILE *fd);
 
-#ifdef GDE_DISTORTIONTENSOR
-void get_half_kick_distortion(int pindex, MyBigFloat half_kick_add[6][6]);
-void analyse_phase_space(int pindex,
-                         MyBigFloat *s_1, MyBigFloat *s_2, MyBigFloat *s_3,
-                         MyBigFloat *smear_x, MyBigFloat *smear_y, MyBigFloat *smear_z,
-                         MyBigFloat *second_deriv, MyBigFloat *sigma);
-MyBigFloat get_analytic_annihilation(MyBigFloat s_1, MyBigFloat s_2, MyBigFloat s_3,
-                                   MyBigFloat s_1_prime, MyBigFloat s_2_prime, MyBigFloat s_3_prime,
-                                   MyBigFloat second_deriv, MyBigFloat second_deriv_prime,
-                                   MyBigFloat dt, MyBigFloat sigma);
-MyBigFloat get_max_caustic_density(MyBigFloat s_1, MyBigFloat s_2,
-                                 MyBigFloat s_1_prime, MyBigFloat s_2_prime,
-                                 MyBigFloat second_deriv, MyBigFloat second_deriv_prime,
-                                 MyBigFloat sigma,
-                                 int pindex);
-void get_current_ps_info(int pindex, MyBigFloat * flde, MyBigFloat * psde);
-void do_phase_space_drift(int i, double dt_drift);
-void do_the_phase_space_kick(int i, double dt_gravkick);
-void do_long_range_phase_space_kick(int i, double dt_gravkick);
-/* some math functions we need from phasespace_math.c */
-void ludcmp(MyBigFloat ** a, int n, int *indx, MyBigFloat * d);
-MyBigFloat **matrix(long nrl, long nrh, long ncl, long nch);
-MyBigFloat *vector(long nl, long nh);
-void free_matrix(MyBigFloat ** m, long nrl, long nrh, long ncl, long nch);
-void free_vector(MyBigFloat * v, long nl, long nh);
-void mult_matrix(MyBigFloat ** matrix_a, MyBigFloat ** matrix_b, int dimension, MyBigFloat ** matrix_result);
-void mult_matrix_transpose_A(MyBigFloat ** matrix_a, MyBigFloat ** matrix_b, int dimension, MyBigFloat ** matrix_result);
-void luinvert(MyBigFloat ** input_matrix, int n, MyBigFloat ** inverse_matrix);
-void eigsrt(MyBigFloat d[], MyBigFloat ** v, int n);
-void jacobi(MyBigFloat ** a, int n, MyBigFloat d[], MyBigFloat ** v, int *nrot);
-#ifdef PMGRID
-void pmtidaltensor_periodic_diff(void);
-void pmtidaltensor_periodic_fourier(int component);
-int pmtidaltensor_nonperiodic_diff(int grnr);
-int pmtidaltensor_nonperiodic_fourier(int component, int grnr);
-void check_tidaltensor_periodic(int particle_ID);
-void check_tidaltensor_nonperiodic(int particle_ID);
-#endif
-#endif
 
 
 int ags_gravity_kernel_shared_BITFLAG(short int particle_type_primary);

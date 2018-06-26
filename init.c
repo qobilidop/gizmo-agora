@@ -39,9 +39,6 @@ void init(void)
     int count_holes = 0;
 #endif
     
-#ifdef GDE_DISTORTIONTENSOR
-    int i1, i2;
-#endif
     
     All.Time = All.TimeBegin;
     set_cosmo_factors_for_current_time();    
@@ -216,77 +213,6 @@ void init(void)
             P[i].GravAccel[j] = 0;
         
         /* DISTORTION PARTICLE SETUP */
-#ifdef GDE_DISTORTIONTENSOR
-        /*init tidal tensor for first output (not used for calculation) */
-        for(i1 = 0; i1 < 3; i1++)
-            for(i2 = 0; i2 < 3; i2++)
-                P[i].tidal_tensorps[i1][i2] = 0.0;
-        
-        /* find caustics by sign analysis of configuration space distortion */
-        P[i].last_determinant = 1.0;
-        
-        
-        
-#ifdef PMGRID
-        /* long range tidal field init */
-        P[i].tidal_tensorpsPM[0][0] = 0;
-        P[i].tidal_tensorpsPM[0][1] = 0;
-        P[i].tidal_tensorpsPM[0][2] = 0;
-        P[i].tidal_tensorpsPM[1][0] = 0;
-        P[i].tidal_tensorpsPM[1][1] = 0;
-        P[i].tidal_tensorpsPM[1][2] = 0;
-        P[i].tidal_tensorpsPM[2][0] = 0;
-        P[i].tidal_tensorpsPM[2][1] = 0;
-        P[i].tidal_tensorpsPM[2][2] = 0;
-#endif
-        
-        for(i1 = 0; i1 < 6; i1++)
-            for(i2 = 0; i2 < 6; i2++)
-            {
-                if(i1 == i2)
-                    P[i].distortion_tensorps[i1][i2] = 1.0;
-                else
-                    P[i].distortion_tensorps[i1][i2] = 0.0;
-            }
-        
-        /* for cosmological simulations we do init here, not read from ICs */
-        if(All.ComovingIntegrationOn)
-        {
-            /* no caustic passages in the beginning */
-            P[i].caustic_counter = 0.0;
-            /* Lagrange time of particle */
-            P[i].a0 = All.TimeBegin;
-            /* approximation: perfect Hubble Flow -> peculiar sheet orientation is exactly zero */
-            for(i1 = 0; i1 < 3; i1++)
-                for(i2 = 0; i2 < 3; i2++)
-                    GDE_VMATRIX(i,i1,i2) = 0.0;
-            /* approximation: initial sream density equals background density */
-            P[i].init_density = All.Omega0 * 3 * All.Hubble_H0_CodeUnits * All.Hubble_H0_CodeUnits / (8 * M_PI * All.G);
-        }
-        
-        /* annihilation stuff */
-        P[i].s_1_last = 1.0;
-        P[i].s_2_last = 1.0;
-        P[i].s_3_last = 1.0;
-        P[i].second_deriv_last = 0.0;
-        P[i].rho_normed_cutoff_last = 1.0;
-        
-        P[i].s_1_current = 1.0;
-        P[i].s_2_current = 1.0;
-        P[i].s_3_current = 1.0;
-        P[i].second_deriv_current = 0.0;
-        P[i].rho_normed_cutoff_current = 1.0;
-        
-        P[i].annihilation = 0.0;
-        P[i].analytic_caustics = 0.0;
-        P[i].analytic_annihilation = 0.0;
-        
-        if(All.ComovingIntegrationOn)
-            P[i].stream_density = GDE_INITDENSITY(i) / (All.TimeBegin * All.TimeBegin * All.TimeBegin);
-        else
-            P[i].stream_density = GDE_INITDENSITY(i);
-        
-#endif /* GDE_DISTORTIONTENSOR */
         
 #ifdef KEEP_DM_HSML_AS_GUESS
         if(RestartFlag != 1)
@@ -328,12 +254,15 @@ void init(void)
             P[i].GradRho[1]=0;
             P[i].GradRho[2]=1;
 #endif
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
+#if defined(GALSF_FB_MECHANICAL) || defined(GALSF_FB_THERMAL)
             P[i].SNe_ThisTimeStep = 0;
+#endif
+#ifdef GALSF_FB_MECHANICAL
+            int k; for(k=0;k<AREA_WEIGHTED_SUM_ELEMENTS;k++) {P[i].Area_weighted_sum[k] = 0;}
 #endif
         }
         
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(GALSF_FB_MECHANICAL) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
         if(RestartFlag == 0)
         {
             P[i].StellarAge = -2.0 * All.InitStellarAgeinGyr / (All.UnitTime_in_Megayears*0.001) * get_random_number(P[i].ID + 3);
@@ -374,7 +303,7 @@ void init(void)
 #endif // COOL_METAL_LINES_BY_SPECIES
         
         if(RestartFlag == 0) {
-#if defined(COOL_METAL_LINES_BY_SPECIES) || defined(COOL_GRACKLE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
+#if defined(COOL_METAL_LINES_BY_SPECIES) || defined(COOL_GRACKLE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_MECHANICAL) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
             P[i].Metallicity[0] = All.InitMetallicityinSolar*All.SolarAbundances[0];
 #else
             P[i].Metallicity[0] = 0;

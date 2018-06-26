@@ -335,14 +335,6 @@ integertime get_timestep(int p,		/*!< particle index */
             az += SphP[p].TurbAccel[2];
         }
 #endif
-#ifdef RT_RAD_PRESSURE_OUTPUT
-        if(P[p].Type==0)
-        {
-            ax += SphP[p].RadAccel[0];
-            ay += SphP[p].RadAccel[1];
-            az += SphP[p].RadAccel[2];
-        }
-#endif
         
         if(P[p].Type == 0)
         {
@@ -398,6 +390,22 @@ integertime get_timestep(int p,		/*!< particle index */
     }
 #endif
 
+#if (defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)) && defined(GALSF) && defined(GALSF_FB_MECHANICAL)
+    if(((P[p].Type == 4)||((All.ComovingIntegrationOn==0)&&((P[p].Type == 2)||(P[p].Type==3))))&&(P[p].Mass>0))
+    {
+        if((All.ComovingIntegrationOn))
+        {
+#ifdef ADAPTIVE_GRAVSOFT_FORALL
+            double ags_h = DMAX(PPP[p].AGS_Hsml , DMAX(PPP[p].Hsml,All.ForceSoftening[P[p].Type]));
+            ags_h = DMIN(ags_h, DMAX(100.*All.ForceSoftening[P[p].Type] , 10.*PPP[p].AGS_Hsml));
+#else
+            double ags_h = DMAX(PPP[p].Hsml,All.ForceSoftening[P[p].Type]);
+            ags_h = DMIN(ags_h, 10.*All.ForceSoftening[P[p].Type]);
+#endif
+            dt = sqrt(2 * All.ErrTolIntAccuracy * All.cf_atime  * KERNEL_CORE_SIZE * ags_h / ac);
+        }
+    }
+#endif
 
     
     
@@ -633,7 +641,7 @@ integertime get_timestep(int p,		/*!< particle index */
     
     
     // add a 'stellar evolution timescale' criterion to the timestep, to prevent too-large jumps in feedback //
-#if defined(YOUNGSTARWINDDRIVING) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(YOUNGSTARWINDDRIVING) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_MECHANICAL) || defined(FLAG_NOT_IN_PUBLIC_CODE)
     if(((P[p].Type == 4)||((All.ComovingIntegrationOn==0)&&((P[p].Type == 2)||(P[p].Type==3))))&&(P[p].Mass>0))
     {
         double star_age = evaluate_stellar_age_Gyr(P[p].StellarAge);

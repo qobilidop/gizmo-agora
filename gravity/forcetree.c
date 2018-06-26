@@ -46,9 +46,6 @@ static int last;
 #define NTAB 1000
 /*! variables for short-range lookup table */
 static float shortrange_table[NTAB], shortrange_table_potential[NTAB];
-#ifdef GDE_DISTORTIONTENSOR
-static float shortrange_table_tidal[NTAB];
-#endif
 /*! toggles after first tree-memory allocation, has only influence on log-files */
 static int first_flag = 0;
 
@@ -514,9 +511,8 @@ void force_update_node_recursive(int no, int sib, int father)
     MyFloat s[3], vs[3], mass;
     struct particle_data *pa;
     
-#ifdef RT_USE_GRAVTREE
-    MyFloat stellar_lum[N_RT_FREQ_BINS], sigma_eff=0;
-    for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
+#ifdef DM_SCALARFIELD_SCREENING
+    MyFloat s_dm[3], vs_dm[3], mass_dm;
 #endif
     
     MyFloat maxsoft;
@@ -540,12 +536,15 @@ void force_update_node_recursive(int no, int sib, int father)
         
         last = no;
         
-#ifdef RT_USE_GRAVTREE
-        for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
-#endif
 #ifdef BH_CALC_DISTANCES
         MyFloat bh_mass=0;
         MyFloat bh_pos_times_mass[3]={0,0,0};   /* position of each black hole in the node times its mass; divide by total mass at the end to get COM */
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+        mass_dm = 0;
+        s_dm[0] = vs_dm[0] = 0;
+        s_dm[1] = vs_dm[1] = 0;
+        s_dm[2] = vs_dm[2] = 0;
 #endif
         mass = 0;
         s[0] = 0;
@@ -594,14 +593,20 @@ void force_update_node_recursive(int no, int sib, int father)
                         vs[0] += (Nodes[p].u.d.mass * Extnodes[p].vs[0]);
                         vs[1] += (Nodes[p].u.d.mass * Extnodes[p].vs[1]);
                         vs[2] += (Nodes[p].u.d.mass * Extnodes[p].vs[2]);
-#ifdef RT_USE_GRAVTREE
-                        for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += (Nodes[p].stellar_lum[k]);}
-#endif
 #ifdef BH_CALC_DISTANCES
                         bh_mass += Nodes[p].bh_mass;
                         bh_pos_times_mass[0] += Nodes[p].bh_pos[0] * Nodes[p].bh_mass;
                         bh_pos_times_mass[1] += Nodes[p].bh_pos[1] * Nodes[p].bh_mass;
                         bh_pos_times_mass[2] += Nodes[p].bh_pos[2] * Nodes[p].bh_mass;
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+                        mass_dm += (Nodes[p].mass_dm);
+                        s_dm[0] += (Nodes[p].mass_dm * Nodes[p].s_dm[0]);
+                        s_dm[1] += (Nodes[p].mass_dm * Nodes[p].s_dm[1]);
+                        s_dm[2] += (Nodes[p].mass_dm * Nodes[p].s_dm[2]);
+                        vs_dm[0] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[0]);
+                        vs_dm[1] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[1]);
+                        vs_dm[2] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[2]);
 #endif
                         if(Nodes[p].u.d.mass > 0)
                         {
@@ -639,14 +644,6 @@ void force_update_node_recursive(int no, int sib, int father)
                     vs[1] += (pa->Mass * pa->Vel[1]);
                     vs[2] += (pa->Mass * pa->Vel[2]);
                     
-#ifdef RT_USE_GRAVTREE
-                    double lum[N_RT_FREQ_BINS];
-                    int active_check = rt_get_source_luminosity(p,sigma_eff,lum);
-                    if(active_check)
-                    {
-                        double l_sum = 0; for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += lum[k]; l_sum += lum[k];}
-                    }
-#endif
                     
                     
                     
@@ -661,6 +658,18 @@ void force_update_node_recursive(int no, int sib, int father)
 #endif
                     
                     
+#ifdef DM_SCALARFIELD_SCREENING
+                    if(pa->Type != 0)
+                    {
+                        mass_dm += (pa->Mass);
+                        s_dm[0] += (pa->Mass * pa->Pos[0]);
+                        s_dm[1] += (pa->Mass * pa->Pos[1]);
+                        s_dm[2] += (pa->Mass * pa->Pos[2]);
+                        vs_dm[0] += (pa->Mass * pa->Vel[0]);
+                        vs_dm[1] += (pa->Mass * pa->Vel[1]);
+                        vs_dm[2] += (pa->Mass * pa->Vel[2]);
+                    }
+#endif
                     if(pa->Type == 0)
                     {
                         if(PPP[p].Hsml > hmax)
@@ -720,6 +729,26 @@ void force_update_node_recursive(int no, int sib, int father)
             vs[2] = 0;
         }
         
+#ifdef DM_SCALARFIELD_SCREENING
+        if(mass_dm)
+        {
+            s_dm[0] /= mass_dm;
+            s_dm[1] /= mass_dm;
+            s_dm[2] /= mass_dm;
+            vs_dm[0] /= mass_dm;
+            vs_dm[1] /= mass_dm;
+            vs_dm[2] /= mass_dm;
+        }
+        else
+        {
+            s_dm[0] = Nodes[no].center[0];
+            s_dm[1] = Nodes[no].center[1];
+            s_dm[2] = Nodes[no].center[2];
+            vs_dm[0] = 0;
+            vs_dm[1] = 0;
+            vs_dm[2] = 0;
+        }
+#endif
         
         
         Nodes[no].Ti_current = All.Ti_Current;
@@ -728,9 +757,6 @@ void force_update_node_recursive(int no, int sib, int father)
         Nodes[no].u.d.s[1] = s[1];
         Nodes[no].u.d.s[2] = s[2];
         Nodes[no].GravCost = 0;
-#ifdef RT_USE_GRAVTREE
-        for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = stellar_lum[k];}
-#endif
 #ifdef BH_CALC_DISTANCES
         Nodes[no].bh_mass = bh_mass;
         if(bh_mass > 0)
@@ -739,6 +765,18 @@ void force_update_node_recursive(int no, int sib, int father)
                 Nodes[no].bh_pos[1] = bh_pos_times_mass[1] / bh_mass;
                 Nodes[no].bh_pos[2] = bh_pos_times_mass[2] / bh_mass;
             }
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+        Nodes[no].s_dm[0] = s_dm[0];
+        Nodes[no].s_dm[1] = s_dm[1];
+        Nodes[no].s_dm[2] = s_dm[2];
+        Nodes[no].mass_dm = mass_dm;
+        Extnodes[no].vs_dm[0] = vs_dm[0];
+        Extnodes[no].vs_dm[1] = vs_dm[1];
+        Extnodes[no].vs_dm[2] = vs_dm[2];
+        Extnodes[no].dp_dm[0] = 0;
+        Extnodes[no].dp_dm[1] = 0;
+        Extnodes[no].dp_dm[2] = 0;
 #endif
         
         Extnodes[no].Ti_lastkicked = All.Ti_Current;
@@ -807,12 +845,14 @@ void force_exchange_pseudodata(void)
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
         MyFloat maxsoft;
 #endif
-#ifdef RT_USE_GRAVTREE
-        MyFloat stellar_lum[N_RT_FREQ_BINS];
-#endif
 #ifdef BH_CALC_DISTANCES
         MyFloat bh_mass;
         MyFloat bh_pos[3];
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+        MyFloat s_dm[3];
+        MyFloat vs_dm[3];
+        MyFloat mass_dm;
 #endif
         unsigned int bitflags;
 #ifdef PAD_STRUCTURES
@@ -854,14 +894,20 @@ void force_exchange_pseudodata(void)
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
             DomainMoment[i].maxsoft = Nodes[no].maxsoft;
 #endif
-#ifdef RT_USE_GRAVTREE
-            int k; for(k=0;k<N_RT_FREQ_BINS;k++) {DomainMoment[i].stellar_lum[k] = Nodes[no].stellar_lum[k];}
-#endif
 #ifdef BH_CALC_DISTANCES
             DomainMoment[i].bh_mass = Nodes[no].bh_mass;
             DomainMoment[i].bh_pos[0] = Nodes[no].bh_pos[0];
             DomainMoment[i].bh_pos[1] = Nodes[no].bh_pos[1];
             DomainMoment[i].bh_pos[2] = Nodes[no].bh_pos[2];
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+            DomainMoment[i].s_dm[0] = Nodes[no].s_dm[0];
+            DomainMoment[i].s_dm[1] = Nodes[no].s_dm[1];
+            DomainMoment[i].s_dm[2] = Nodes[no].s_dm[2];
+            DomainMoment[i].mass_dm = Nodes[no].mass_dm;
+            DomainMoment[i].vs_dm[0] = Extnodes[no].vs_dm[0];
+            DomainMoment[i].vs_dm[1] = Extnodes[no].vs_dm[1];
+            DomainMoment[i].vs_dm[2] = Extnodes[no].vs_dm[2];
 #endif
         }
     
@@ -913,14 +959,20 @@ void force_exchange_pseudodata(void)
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
                     Nodes[no].maxsoft = DomainMoment[i].maxsoft;
 #endif
-#ifdef RT_USE_GRAVTREE
-                    int k; for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = DomainMoment[i].stellar_lum[k];}
-#endif
 #ifdef BH_CALC_DISTANCES
                     Nodes[no].bh_mass = DomainMoment[i].bh_mass;
                     Nodes[no].bh_pos[0] = DomainMoment[i].bh_pos[0];
                     Nodes[no].bh_pos[1] = DomainMoment[i].bh_pos[1];
                     Nodes[no].bh_pos[2] = DomainMoment[i].bh_pos[2];
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+                    Nodes[no].s_dm[0] = DomainMoment[i].s_dm[0];
+                    Nodes[no].s_dm[1] = DomainMoment[i].s_dm[1];
+                    Nodes[no].s_dm[2] = DomainMoment[i].s_dm[2];
+                    Nodes[no].mass_dm = DomainMoment[i].mass_dm;
+                    Extnodes[no].vs_dm[0] = DomainMoment[i].vs_dm[0];
+                    Extnodes[no].vs_dm[1] = DomainMoment[i].vs_dm[1];
+                    Extnodes[no].vs_dm[2] = DomainMoment[i].vs_dm[2];
 #endif
                 }
     
@@ -939,18 +991,21 @@ void force_treeupdate_pseudos(int no)
     MyFloat divVmax;
     MyFloat s[3], vs[3], mass;
     
-#ifdef RT_USE_GRAVTREE
-    MyFloat stellar_lum[N_RT_FREQ_BINS];
+#ifdef DM_SCALARFIELD_SCREENING
+    MyFloat s_dm[3], vs_dm[3], mass_dm;
 #endif
     
     MyFloat maxsoft;
     
-#ifdef RT_USE_GRAVTREE
-    for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
-#endif
 #ifdef BH_CALC_DISTANCES
     MyFloat bh_mass=0;
     MyFloat bh_pos_times_mass[3]={0,0,0};
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+    mass_dm = 0;
+    s_dm[0] = vs_dm[0] = 0;
+    s_dm[1] = vs_dm[1] = 0;
+    s_dm[2] = vs_dm[2] = 0;
 #endif
     mass = 0;
     s[0] = 0;
@@ -978,14 +1033,20 @@ void force_treeupdate_pseudos(int no)
             s[0] += (Nodes[p].u.d.mass * Nodes[p].u.d.s[0]);
             s[1] += (Nodes[p].u.d.mass * Nodes[p].u.d.s[1]);
             s[2] += (Nodes[p].u.d.mass * Nodes[p].u.d.s[2]);
-#ifdef RT_USE_GRAVTREE
-            int k; for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += (Nodes[p].stellar_lum[k]);}
-#endif
 #ifdef BH_CALC_DISTANCES
             bh_mass += Nodes[p].bh_mass;
             bh_pos_times_mass[0] += Nodes[p].bh_pos[0] * Nodes[p].bh_mass;
             bh_pos_times_mass[1] += Nodes[p].bh_pos[1] * Nodes[p].bh_mass;
             bh_pos_times_mass[2] += Nodes[p].bh_pos[2] * Nodes[p].bh_mass;
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+            mass_dm += (Nodes[p].mass_dm);
+            s_dm[0] += (Nodes[p].mass_dm * Nodes[p].s_dm[0]);
+            s_dm[1] += (Nodes[p].mass_dm * Nodes[p].s_dm[1]);
+            s_dm[2] += (Nodes[p].mass_dm * Nodes[p].s_dm[2]);
+            vs_dm[0] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[0]);
+            vs_dm[1] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[1]);
+            vs_dm[2] += (Nodes[p].mass_dm * Extnodes[p].vs_dm[2]);
 #endif
             vs[0] += (Nodes[p].u.d.mass * Extnodes[p].vs[0]);
             vs[1] += (Nodes[p].u.d.mass * Extnodes[p].vs[1]);
@@ -1034,6 +1095,26 @@ void force_treeupdate_pseudos(int no)
         vs[2] = 0;
     }
     
+#ifdef DM_SCALARFIELD_SCREENING
+    if(mass_dm)
+    {
+        s_dm[0] /= mass_dm;
+        s_dm[1] /= mass_dm;
+        s_dm[2] /= mass_dm;
+        vs_dm[0] /= mass_dm;
+        vs_dm[1] /= mass_dm;
+        vs_dm[2] /= mass_dm;
+    }
+    else
+    {
+        s_dm[0] = Nodes[no].center[0];
+        s_dm[1] = Nodes[no].center[1];
+        s_dm[2] = Nodes[no].center[2];
+        vs_dm[0] = 0;
+        vs_dm[1] = 0;
+        vs_dm[2] = 0;
+    }
+#endif
     
     
     Nodes[no].u.d.s[0] = s[0];
@@ -1043,9 +1124,6 @@ void force_treeupdate_pseudos(int no)
     Extnodes[no].vs[1] = vs[1];
     Extnodes[no].vs[2] = vs[2];
     Nodes[no].u.d.mass = mass;
-#ifdef RT_USE_GRAVTREE
-    int k; for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = stellar_lum[k];}
-#endif
 #ifdef BH_CALC_DISTANCES
     Nodes[no].bh_mass = bh_mass;
     if(bh_mass > 0)
@@ -1054,6 +1132,15 @@ void force_treeupdate_pseudos(int no)
             Nodes[no].bh_pos[1] = bh_pos_times_mass[1] / bh_mass;
             Nodes[no].bh_pos[2] = bh_pos_times_mass[2] / bh_mass;
         }
+#endif
+#ifdef DM_SCALARFIELD_SCREENING
+    Nodes[no].s_dm[0] = s_dm[0];
+    Nodes[no].s_dm[1] = s_dm[1];
+    Nodes[no].s_dm[2] = s_dm[2];
+    Nodes[no].mass_dm = mass_dm;
+    Extnodes[no].vs_dm[0] = vs_dm[0];
+    Extnodes[no].vs_dm[1] = vs_dm[1];
+    Extnodes[no].vs_dm[2] = vs_dm[2];
 #endif
     
     Extnodes[no].hmax = hmax;
@@ -1190,21 +1277,10 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     integertime ti_Current = All.Ti_Current;
     double errTol2 = All.ErrTolTheta * All.ErrTolTheta;
     
-#ifdef GDE_DISTORTIONTENSOR
-    int i1, i2;
-    double fac2, h_tidal, h_inv_tidal, h3_inv_tidal, h5_inv, h5_inv_tidal, fac_tidal;
-    MyDouble tidal_tensorps[3][3];
-#endif
 #if defined(REDUCE_TREEWALK_BRANCHING) && defined(PMGRID)
     double dxx, dyy, dzz, pdxx, pdyy, pdzz;
 #endif
     
-#ifdef RT_USE_GRAVTREE
-    double mass_stellarlum[N_RT_FREQ_BINS];
-    int k_freq; for(k_freq=0;k_freq<N_RT_FREQ_BINS;k_freq++) {mass_stellarlum[k_freq]=0;}
-    double dx_stellarlum=0, dy_stellarlum=0, dz_stellarlum=0, sigma_eff=0;
-    int valid_gas_particle_for_rt = 0;
-#endif
     
 #ifdef BH_CALC_DISTANCES
     double min_dist_to_bh2=1.e37;
@@ -1212,7 +1288,10 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif
     
     
-#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE)
+#ifdef DM_SCALARFIELD_SCREENING
+    double dx_dm = 0, dy_dm = 0, dz_dm = 0, mass_dm = 0;
+#endif
+#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE)
     double soft=0, pmass;
 #if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     double h_p_inv=0, h_p3_inv=0, u_p=0, zeta, zeta_sec=0;
@@ -1223,11 +1302,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     double facpot;
     MyLongDouble pot;
     pot = 0;
-#endif
-#ifdef GDE_DISTORTIONTENSOR
-    for(i1 = 0; i1 < 3; i1++)
-        for(i2 = 0; i2 < 3; i2++)
-            tidal_tensorps[i1][i2] = 0.0;
 #endif
     
     acc_x = 0;
@@ -1252,11 +1326,11 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
         pos_y = P[target].Pos[1];
         pos_z = P[target].Pos[2];
         ptype = P[target].Type;
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         pmass = P[target].Mass;
 #endif
         aold = All.ErrTolForceAcc * P[target].OldAcc;
-#if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL)
+#if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL)
         soft = All.ForceSoftening[ptype];
 #endif
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS)
@@ -1292,12 +1366,12 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
         pos_x = GravDataGet[target].Pos[0];
         pos_y = GravDataGet[target].Pos[1];
         pos_z = GravDataGet[target].Pos[2];
-#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         pmass = GravDataGet[target].Mass;
 #endif
         ptype = GravDataGet[target].Type;
         aold = All.ErrTolForceAcc * GravDataGet[target].OldAcc;
-#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE)
+#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE)
         soft = GravDataGet[target].Soft;
 #if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         zeta = GravDataGet[target].AGS_zeta;
@@ -1347,18 +1421,8 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     
     
     
-#ifdef RT_USE_GRAVTREE
-    if(ptype==0) {if((soft>0)&&(pmass>0)) {valid_gas_particle_for_rt = 1;}}
-#endif
     
     
-#ifdef GDE_DISTORTIONTENSOR
-    /* different tidal field softening */
-    h_tidal = All.ForceSoftening[ptype];
-    h_inv_tidal = 1.0 / h_tidal;
-    h3_inv_tidal = h_inv_tidal * h_inv_tidal * h_inv_tidal;
-    h5_inv_tidal = h_inv_tidal * h_inv_tidal * h_inv_tidal * h_inv_tidal * h_inv_tidal;
-#endif
     
     
     if(mode == 0)
@@ -1417,17 +1481,25 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif
 
                 
-#ifdef RT_USE_GRAVTREE
-                if(valid_gas_particle_for_rt)	/* we have a (valid) gas particle as target */
+                
+                
+#ifdef DM_SCALARFIELD_SCREENING
+                if(ptype != 0)	/* we have a dark matter particle as target */
                 {
-                    dx_stellarlum=dx; dy_stellarlum=dy; dz_stellarlum=dz;
-                    double lum[N_RT_FREQ_BINS];
-                    int active_check = rt_get_source_luminosity(no,sigma_eff,lum);
-                    int kf; for(kf=0;kf<N_RT_FREQ_BINS;kf++) {if(active_check) {mass_stellarlum[kf]=lum[kf];} else {mass_stellarlum[kf]=0;}}
+                    if(P[no].Type == 1)
+                    {
+                        dx_dm = dx;
+                        dy_dm = dy;
+                        dz_dm = dz;
+                        mass_dm = mass;
+                    }
+                    else
+                    {
+                        mass_dm = 0;
+                        dx_dm = dy_dm = dz_dm = 0;
+                    }
                 }
 #endif
-                
-                
                 
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
                 /* set secondary softening and zeta term */
@@ -1586,15 +1658,22 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 }
 #endif
                 
-#ifdef RT_USE_GRAVTREE
-                if(valid_gas_particle_for_rt)	/* we have a (valid) gas particle as target */
+                
+                
+#ifdef DM_SCALARFIELD_SCREENING
+                if(ptype != 0)	/* we have a dark matter particle as target */
                 {
-                    int kf; for(kf=0;kf<N_RT_FREQ_BINS;kf++) {mass_stellarlum[kf] = nop->stellar_lum[kf];}
-                    dx_stellarlum = dx; dy_stellarlum = dy; dz_stellarlum = dz;
+                    dx_dm = nop->s_dm[0] - pos_x;
+                    dy_dm = nop->s_dm[1] - pos_y;
+                    dz_dm = nop->s_dm[2] - pos_z;
+                    mass_dm = nop->mass_dm;
+                }
+                else
+                {
+                    mass_dm = 0;
+                    dx_dm = dy_dm = dz_dm = 0;
                 }
 #endif
-                
-                
                 
 #ifdef PMGRID
 #ifdef REDUCE_TREEWALK_BRANCHING
@@ -1671,7 +1750,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 else		/* check relative opening criterion */
                 {
                     /* force node to open if we are within the gravitational softening length */
-#if !(defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE))
+#if !(defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE))
                     double soft = All.ForceSoftening[ptype];
 #endif
                     if((r2 < (soft+0.6*nop->len)*(soft+0.6*nop->len)) || (r2 < (nop->maxsoft+0.6*nop->len)*(nop->maxsoft+0.6*nop->len)))
@@ -1756,10 +1835,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
             if(r >= h)
             {
                 fac = mass / (r2 * r);
-#ifdef GDE_DISTORTIONTENSOR
-                /* second derivative of potential needs this factor */
-                fac2 = 3.0 * mass / (r2 * r2 * r);
-#endif
 #ifdef EVALPOTENTIAL
                 facpot = -mass / r;
 #endif
@@ -1769,9 +1844,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #if !defined(ADAPTIVE_GRAVSOFT_FORALL) && !defined(ADAPTIVE_GRAVSOFT_FORGAS)
                 h_inv = 1.0 / h;
                 h3_inv = h_inv * h_inv * h_inv;
-#ifdef GDE_DISTORTIONTENSOR
-                h5_inv = h_inv * h_inv * h_inv * h_inv * h_inv;
-#endif
 #endif
                 u = r * h_inv;
                 fac = mass * kernel_gravity(u, h_inv, h3_inv, 1);
@@ -1857,14 +1929,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #ifdef EVALPOTENTIAL
                 facpot = mass * kernel_gravity(u, h_inv, h3_inv, -1);
 #endif
-#ifdef GDE_DISTORTIONTENSOR
-                /*second derivatives needed -> calculate them from softend potential,
-                 (see Gadget 1 paper and there g2 function). SIGN?! */
-                if(u < 0.5)
-                    fac2 = mass * h5_inv * (76.8 - 96.0 * u);
-                else
-                    fac2 = mass * h5_inv * (-0.2 / (u * u * u * u * u) + 48.0 / u - 76.8 + 32.0 * u);
-#endif
             } // closes r < h (else) clause
             
                 
@@ -1873,10 +1937,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
             if(tabindex < NTAB && tabindex >= 0)
 #endif // PMGRID //
             {
-#ifdef GDE_DISTORTIONTENSOR
-                /* save original fac without shortrange_table facor (needed for tidal field calculation) */
-                fac_tidal = fac;
-#endif
                 
 #ifdef PMGRID
                 fac *= shortrange_table[tabindex];
@@ -1896,56 +1956,47 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 acc_y += FLT(dy * fac);
                 acc_z += FLT(dz * fac);
                 
-#ifdef GDE_DISTORTIONTENSOR
-                /*
-                 tidal_tensorps[][] = Matrix of second derivatives of grav. potential, symmetric:
-                 |Txx Txy Txz|   |tidal_tensorps[0][0] tidal_tensorps[0][1] tidal_tensorps[0][2]|
-                 |Tyx Tyy Tyz| = |tidal_tensorps[1][0] tidal_tensorps[1][1] tidal_tensorps[1][2]|
-                 |Tzx Tzy Tzz|   |tidal_tensorps[2][0] tidal_tensorps[2][1] tidal_tensorps[2][2]|
-                 */
-#ifdef PMGRID
-                tidal_tensorps[0][0] += ((-fac_tidal + dx * dx * fac2) * shortrange_table[tabindex]) +
-                    dx * dx * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-                tidal_tensorps[0][1] += ((dx * dy * fac2) * shortrange_table[tabindex]) +
-                    dx * dy * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-                tidal_tensorps[0][2] += ((dx * dz * fac2) * shortrange_table[tabindex]) +
-                    dx * dz * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-                tidal_tensorps[1][1] += ((-fac_tidal + dy * dy * fac2) * shortrange_table[tabindex]) +
-                    dy * dy * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-                tidal_tensorps[1][2] += ((dy * dz * fac2) * shortrange_table[tabindex]) +
-                    dy * dz * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-                tidal_tensorps[2][2] += ((-fac_tidal + dz * dz * fac2) * shortrange_table[tabindex]) +
-                    dz * dz * fac2 / 3.0 * shortrange_table_tidal[tabindex];
-#else
-                tidal_tensorps[0][0] += (-fac_tidal + dx * dx * fac2);
-                tidal_tensorps[0][1] += (dx * dy * fac2);
-                tidal_tensorps[0][2] += (dx * dz * fac2);
-                tidal_tensorps[1][1] += (-fac_tidal + dy * dy * fac2);
-                tidal_tensorps[1][2] += (dy * dz * fac2);
-                tidal_tensorps[2][2] += (-fac_tidal + dz * dz * fac2);
-#endif
-                tidal_tensorps[1][0] = tidal_tensorps[0][1];
-                tidal_tensorps[2][0] = tidal_tensorps[0][2];
-                tidal_tensorps[2][1] = tidal_tensorps[1][2];
-#endif // GDE_DISTORTIONTENSOR //
 
             } // closes TABINDEX<NTAB
             
             ninteractions++;
             
             
-#ifdef RT_USE_GRAVTREE
-            if(valid_gas_particle_for_rt)	/* we have a (valid) gas particle as target */
+            
+            
+#ifdef DM_SCALARFIELD_SCREENING
+            if(ptype != 0)	/* we have a dark matter particle as target */
             {
-                r2 = dx_stellarlum*dx_stellarlum + dy_stellarlum*dy_stellarlum + dz_stellarlum*dz_stellarlum; r = sqrt(r2);
-                if(r >= soft) {fac=1./(r2*r);} else {h_inv=1./soft; h3_inv=h_inv*h_inv*h_inv; u=r*h_inv; fac=kernel_gravity(u,h_inv,h3_inv,1);}
-                if((soft>r)&&(soft>0)) fac *= (r2/(soft*soft)); // don't allow cross-section > r2
-                
-                
-            } // closes if(valid_gas_particle_for_rt)
-#endif // RT_USE_GRAVTREE
-            
-            
+#if defined(BOX_PERIODIC) && !defined(GRAVITY_NOT_PERIODIC)
+                NEAREST_XYZ(dx_dm,dy_dm,dz_dm,-1);
+#endif
+                r2 = dx_dm * dx_dm + dy_dm * dy_dm + dz_dm * dz_dm;
+                r = sqrt(r2);
+                if(r >= h)
+                    fac = mass_dm / (r2 * r);
+                else
+                {
+                    h_inv = 1.0 / h;
+                    h3_inv = h_inv * h_inv * h_inv;
+                    u = r * h_inv;
+                    fac = mass_dm * kernel_gravity(u, h_inv, h3_inv, 1);
+                }
+                /* assemble force with strength, screening length, and target charge.  */
+                fac *= All.ScalarBeta * (1 + r / All.ScalarScreeningLength) * exp(-r / All.ScalarScreeningLength);
+#ifdef PMGRID
+                tabindex = (int) (asmthfac * r);
+                if(tabindex < NTAB && tabindex >= 0)
+#endif
+                {
+#ifdef PMGRID
+                    fac *= shortrange_table[tabindex];
+#endif
+                    acc_x += FLT(dx_dm * fac);
+                    acc_y += FLT(dy_dm * fac);
+                    acc_z += FLT(dz_dm * fac);
+                }
+            } // closes if(ptype != 0)
+#endif // DM_SCALARFIELD_SCREENING //
                 
         } // closes (if((r2 > 0) && (mass > 0))) check
             
@@ -1975,9 +2026,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #ifdef EVALPOTENTIAL
         P[target].Potential = pot;
 #endif
-#ifdef GDE_DISTORTIONTENSOR
-        for(i1 = 0; i1 < 3; i1++) {for(i2 = 0; i2 < 3; i2++) {P[target].tidal_tensorps[i1][i2] = tidal_tensorps[i1][i2];}}
-#endif
 #ifdef BH_CALC_DISTANCES
         P[target].min_dist_to_bh = sqrt( min_dist_to_bh2 );
         P[target].min_xyz_to_bh[0] = min_xyz_to_bh[0];   /* remember, dx = x_BH - myx */
@@ -1992,9 +2040,6 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
         GravDataResult[target].Acc[2] = acc_z;
 #ifdef EVALPOTENTIAL
         GravDataResult[target].Potential = pot;
-#endif
-#ifdef GDE_DISTORTIONTENSOR
-        for(i1 = 0; i1 < 3; i1++) {for(i2 = 0; i2 < 3; i2++) {GravDataResult[target].tidal_tensorps[i1][i2] = tidal_tensorps[i1][i2];}}
 #endif
 #ifdef BH_CALC_DISTANCES
         GravDataResult[target].min_dist_to_bh = sqrt( min_dist_to_bh2 );
@@ -2486,8 +2531,10 @@ int force_treeevaluate_potential(int target, int mode, int *nexport, int *nsend_
             {
                 /* the index of the node is the index of the particle */
                 /* observe the sign  */
+#ifndef FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_AND_POTENTIAL
                 if(P[no].Ti_current != All.Ti_Current)
                     drift_particle(no, All.Ti_Current);
+#endif
                 dx = P[no].Pos[0] - pos_x;
                 dy = P[no].Pos[1] - pos_y;
                 dz = P[no].Pos[2] - pos_z;
@@ -2552,8 +2599,10 @@ int force_treeevaluate_potential(int target, int mode, int *nexport, int *nsend_
                     no = nop->u.d.nextnode;
                     continue;
                 }
+#ifndef FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_AND_POTENTIAL
                 if(nop->Ti_current != All.Ti_Current)
                     force_drift_node(no, All.Ti_Current);
+#endif
                 mass = nop->u.d.mass;
                 dx = nop->u.d.s[0] - pos_x;
                 dy = nop->u.d.s[1] - pos_y;
@@ -2847,9 +2896,6 @@ void force_treeallocate(int maxnodes, int maxpart)
             u = 3.0 / NTAB * (i + 0.5);
             shortrange_table[i] = erfc(u) + 2.0 * u / sqrt(M_PI) * exp(-u * u);
             shortrange_table_potential[i] = erfc(u);
-#ifdef GDE_DISTORTIONTENSOR
-            shortrange_table_tidal[i] = 4.0 * u * u * u / sqrt(M_PI) * exp(-u * u);
-#endif
         }
     }
 }

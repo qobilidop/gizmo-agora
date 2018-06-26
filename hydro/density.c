@@ -1353,7 +1353,7 @@ int density_isactive(int n)
 #ifdef DO_DENSITY_AROUND_STAR_PARTICLES
     if(((P[n].Type == 4)||((All.ComovingIntegrationOn==0)&&((P[n].Type == 2)||(P[n].Type==3))))&&(P[n].Mass>0))
     {
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF_FB_THERMAL)
+#if defined(GALSF_FB_MECHANICAL) || defined(GALSF_FB_THERMAL)
         /* check if there is going to be a SNe this timestep, in which case, we want the density info! */
         if(P[n].SNe_ThisTimeStep>0) return 1;
 #endif
