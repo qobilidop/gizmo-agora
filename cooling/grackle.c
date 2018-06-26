@@ -283,8 +283,8 @@ void InitGrackle(void)
     }
     // Third, set parameter values for chemistry & cooling
 
-    // Set solar abundance to AGORA standard value
-    grackle_data.SolarMetalFractionByMass = 0.02041;
+    // Sync solar abundance value
+    grackle_data.SolarMetalFractionByMass = All.SolarAbundances[0];
 
     /* optional flags:: */
     

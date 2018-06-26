@@ -1454,6 +1454,7 @@ extern struct global_data_all_processes
     
     
 #ifdef METALS
+    double SolarAbundance;
     double SolarAbundances[NUM_METAL_SPECIES];
 #ifdef COOL_METAL_LINES_BY_SPECIES
     int SpeciesTableInUse;

@@ -285,8 +285,7 @@ void init(void)
         
         
 #ifdef METALS
-        All.SolarAbundances[0]=0.02;        // all metals (by mass); present photospheric abundances from Asplund et al. 2009 (Z=0.0134, proto-solar=0.0142) in notes;
-                                            //   also Anders+Grevesse 1989 (older, but hugely-cited compilation; their Z=0.0201, proto-solar=0.0213)
+        All.SolarAbundances[0]=All.SolarAbundance;  // all metals (by mass);
 #ifdef COOL_METAL_LINES_BY_SPECIES
         if (NUM_METAL_SPECIES>=10) {
             All.SolarAbundances[1]=0.28;    // He  (10.93 in units where log[H]=12, so photospheric mass fraction -> Y=0.2485 [Hydrogen X=0.7381]; Anders+Grevesse Y=0.2485, X=0.7314)

@@ -130,6 +130,10 @@ ConductionCoeff  1.0  % set/multiply conduction coefficient
 ShearViscosityCoeff     1.0     % set/multiply shear viscosity coefficient
 BulkViscosityCoeff      1.0     % set/multiply bulk viscosity coefficient
 
+%---- Metallicity Master Switch (METALS on)
+SolarAbundance  0.02  % all metals (by mass); present photospheric abundances from Asplund et al. 2009 (Z=0.0134, proto-solar=0.0142) in notes;
+                      % also Anders+Grevesse 1989 (older, but hugely-cited compilation; their Z=0.0201, proto-solar=0.0213)
+
 %---- Turbulent Diffusion Master Switch (TURB_DIFFUSION on)
 TurbDiffusionCoefficient 1.0    % Normalizes diffusion rates relative to Smagorinsky-Lilly theory [best calibration] (~0.5-2)
 
