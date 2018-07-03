@@ -300,13 +300,12 @@ void InitGrackle(void)
 #ifdef METALS
     // Flag to enable metal cooling using the Cloudy tables. If enabled, the cooling table to be used must be specified with the grackle_data_file parameter. Default: 0.
     grackle_data.metal_cooling          = 1;                   // metal cooling on
-    // Flag to enable H2 formation on dust grains, dust cooling, and dust-gas heat transfer follow Omukai (2000). This assumes that the dust to gas ratio scales with the metallicity. Default: 0.
-    grackle_data.h2_on_dust             = 1;                   // dust cooling/chemistry on
 #else
     grackle_data.metal_cooling          = 0;                   // metal cooling on
-    grackle_data.h2_on_dust             = 0;                   // dust cooling/chemistry off
 #endif
     
+    // Flag to enable H2 formation on dust grains, dust cooling, and dust-gas heat transfer follow Omukai (2000). This assumes that the dust to gas ratio scales with the metallicity. Default: 0.
+    grackle_data.h2_on_dust             = 0;
     // Flag to enable an effective CMB temperature floor. This is implemented by subtracting the value of the cooling rate at TCMB from the total cooling rate. Default: 1.
     grackle_data.cmb_temperature_floor  = 1;
     // Flag to enable a UV background. If enabled, the cooling table to be used must be specified with the grackle_data_file parameter. Default: 0.
