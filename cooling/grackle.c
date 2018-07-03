@@ -302,16 +302,9 @@ void InitGrackle(void)
     grackle_data.metal_cooling          = 1;                   // metal cooling on
     // Flag to enable H2 formation on dust grains, dust cooling, and dust-gas heat transfer follow Omukai (2000). This assumes that the dust to gas ratio scales with the metallicity. Default: 0.
     grackle_data.h2_on_dust             = 0;                   // dust cooling/chemistry on
-    // Flag to enable a spatially uniform heating term approximating photo-electric heating from dust from Tasker & Bryan (2008). Default: 0.
-    // If photoelectric_heating enabled, photoelectric_heating_rate is the heating rate in units of erg cm-3 s-1. Default: 8.5e-26.
-    //   (Caution: this tends to heat gas even at extremely high densities to ~3000 K, when it should be entirely self-shielding)
-    grackle_data.photoelectric_heating            = 1;         // photo-electric on [but not adjusted to local background, beware!]
-    grackle_data.photoelectric_heating_rate       = 8.5e-26;
 #else
     grackle_data.metal_cooling          = 0;                   // metal cooling on
     grackle_data.h2_on_dust             = 0;                   // dust cooling/chemistry off
-    grackle_data.photoelectric_heating            = 0;
-    grackle_data.photoelectric_heating_rate       = 8.5e-26;
 #endif
     
     // Flag to enable an effective CMB temperature floor. This is implemented by subtracting the value of the cooling rate at TCMB from the total cooling rate. Default: 1.
