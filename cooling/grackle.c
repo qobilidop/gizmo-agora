@@ -311,6 +311,10 @@ void InitGrackle(void)
     grackle_data.cmb_temperature_floor  = 1;
     // Flag to enable a UV background. If enabled, the cooling table to be used must be specified with the grackle_data_file parameter. Default: 0.
     grackle_data.UVbackground           = 1;                  // UV background on
+    // Flag to enable a spatially uniform heating term approximating photo-electric heating from dust from Tasker & Bryan (2008). Default: 0.
+    // If photoelectric_heating enabled, photoelectric_heating_rate is the heating rate in units of erg cm-3 s-1. Default: 8.5e-26.
+    grackle_data.photoelectric_heating            = 0;
+    grackle_data.photoelectric_heating_rate       = 8.5e-26;
     // Flag to enable Compton heating from an X-ray background following Madau & Efstathiou (1999). Default: 0.
     grackle_data.Compton_xray_heating   = 0;
     
