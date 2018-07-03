@@ -301,7 +301,7 @@ void InitGrackle(void)
     // Flag to enable metal cooling using the Cloudy tables. If enabled, the cooling table to be used must be specified with the grackle_data_file parameter. Default: 0.
     grackle_data.metal_cooling          = 1;                   // metal cooling on
     // Flag to enable H2 formation on dust grains, dust cooling, and dust-gas heat transfer follow Omukai (2000). This assumes that the dust to gas ratio scales with the metallicity. Default: 0.
-    grackle_data.h2_on_dust             = 0;                   // dust cooling/chemistry on
+    grackle_data.h2_on_dust             = 1;                   // dust cooling/chemistry on
 #else
     grackle_data.metal_cooling          = 0;                   // metal cooling on
     grackle_data.h2_on_dust             = 0;                   // dust cooling/chemistry off
