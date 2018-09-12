@@ -272,12 +272,43 @@ void init(void)
 #ifdef GRAIN_FLUID
         if(RestartFlag == 0)
         {
+            /* Change grain mass to change the distribution of sizes.  Grain_Size_Spectrum_Powerlaw parameter sets d\mu/dln(R_d) ~ R_d^Grain_Size_Spectrum_Powerlaw */
             P[i].Grain_Size = All.Grain_Size_Min * exp( gsl_rng_uniform(random_generator) * log(All.Grain_Size_Max/All.Grain_Size_Min) );
-            P[i].Gas_Density = 0;
-            P[i].Gas_InternalEnergy = 0;
-            P[i].Gas_Velocity[0]=P[i].Gas_Velocity[1]=P[i].Gas_Velocity[2]=0;
+            if(P[i].Type==3) {if(All.Grain_Size_Max > All.Grain_Size_Min*1.0001 && fabs(All.Grain_Size_Spectrum_Powerlaw) != 0) {P[i].Mass *= (All.Grain_Size_Spectrum_Powerlaw/(pow(All.Grain_Size_Max/All.Grain_Size_Min,All.Grain_Size_Spectrum_Powerlaw)-1.)) * pow(P[i].Grain_Size/All.Grain_Size_Min,All.Grain_Size_Spectrum_Powerlaw) * log(All.Grain_Size_Max/All.Grain_Size_Min);}}
+
+
+#ifdef GRAIN_RDI_TESTPROBLEM
+	    if(P[i].Type == 3) /* initialize various quantities for test problems from parameters set in the ICs */
+	    {
+		P[i].Mass *= All.Dust_to_Gas_Mass_Ratio;
+		{ 	
+			double tS0 = 0.626657 * P[i].Grain_Size * sqrt(GAMMA); /* stopping time [Epstein] for driftvel->0 */
+                        double a0 = tS0 * All.Vertical_Grain_Accel / (1.+All.Dust_to_Gas_Mass_Ratio); /* acc * tS0 / (1+mu) */
+#ifdef GRAIN_RDI_TESTPROBLEM_ACCEL_DEPENDS_ON_SIZE
+			a0 *= All.Grain_Size_Max / P[i].Grain_Size;
+#endif
+                        double ct = cos(All.Vertical_Grain_Accel_Angle * M_PI/180.), st = sin(All.Vertical_Grain_Accel_Angle * M_PI/180.); /* relevant angles */
+			int k; double agamma=0.220893; // 9pi/128 //
+			double tau2=0, w0=sqrt((sqrt(1.+4.*agamma*a0*a0)-1.)/(2.*agamma)); // exact solution if no Lorentz forces and Epstein drag //
 #ifdef GRAIN_LORENTZFORCE
-            P[i].Gas_B[0]=P[i].Gas_B[1]=P[i].Gas_B[2];
+			double tL_i = All.Grain_Charge_Parameter/All.Grain_Size_Max * pow(All.Grain_Size_Max/P[i].Grain_Size,2) * All.BiniZ; // 1/Lorentz in code units
+			double ct2=ct*ct, tau2_0=pow(tS0*tL_i,2), f_tau_guess2=0; // variables for below //
+			for(k=0;k<20;k++)
+			{
+			   tau2 = tau2_0 / (1. + agamma*w0*w0); // guess tau [including velocity dependence] //
+			   f_tau_guess2 = (1.+tau2*ct2) / (1.+tau2); // what the projection factor (reduction in w from projection) would be //
+			   w0 = sqrt((sqrt(1.+4.*agamma*a0*a0*f_tau_guess2)-1.)/(2.*agamma)); // re-calculate w0 with this // 
+			}
+#endif
+		w0 /= sqrt((1.+tau2)*(1.+tau2*ct2)); // ensures normalization to unity with convention below //
+		P[i].Vel[0] = w0*st; P[i].Vel[1] = w0*sqrt(tau2)*st; P[i].Vel[2] = w0*(1.+tau2)*ct;
+		}
+	    }	    
+#endif
+
+            P[i].Gas_Density = P[i].Gas_InternalEnergy = P[i].Gas_Velocity[0]=P[i].Gas_Velocity[1]=P[i].Gas_Velocity[2]=0;
+#ifdef GRAIN_LORENTZFORCE
+            P[i].Gas_B[0]=P[i].Gas_B[1]=P[i].Gas_B[2]=0;
 #endif
         }
 #endif
@@ -573,6 +604,7 @@ void init(void)
     
     /* HELLO! This here is where you should insert custom code for hard-wiring the ICs of various test problems */
 
+
     
     
     density();
@@ -731,15 +763,6 @@ void init(void)
         endrun(0);
     }
 #endif
-    
-    
-    if(RestartFlag == 6)
-    {
-#if defined(BOX_PERIODIC) && defined(TURB_DRIVING_DUMPSPECTRUM)
-        TURB_DRIVING_DUMPSPECTRUM();
-#endif
-        endrun(0);
-    }
     
     
     if(RestartFlag == 4)

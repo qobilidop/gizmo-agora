@@ -981,7 +981,6 @@ These options set different fluid physics. This includes changing the equation o
 ####################################################################################################
 #TURB_DRIVING                   # turns on turbulent driving/stirring. see begrun for parameters that must be set
 #TURB_DRIVING_SPECTRUMGRID=128  # activates on-the-fly calculation of the turbulent velocity, vorticity, and smoothed-velocity power spectra, evaluated on a grid of linear-size TURB_DRIVING_SPECTRUMGRID elements
-#TURB_DRIVING_DUMPSPECTRUM      # compiles in a code module that allows via restart-flag 6 the calculation (+immediate output) of a gas velocity power spectrum of a snapshot with an adjustable box (user defined center and size)
 ####################################################################################################
 ```
 
@@ -990,8 +989,6 @@ These flags enable explicit turbulent 'stirring' of the simulation volume, as in
 **TURB\_DRIVING**: This activates a module, based closely on the original GADGET results shared by Andreas Bauer, to include a turbulent driving routine. It assumes a periodic box (BOX\_PERIODIC on), which is then stirred as in Schmidt 2008, Federrath 2010, Price 2010: a small range of modes (which range set in the parameterfile) are driven in Fourier space as an Ornstein-Uhlenbeck process, with the compressive part of the acceleration optionally projected out via a Helmholtz decomposition in Fourier space so that the driving is purely incompressible/solenoidal (most appropriate for sub-sonic turbulence). The parameters of the driving are set in the parameterfile as described below. Users of this module should cite Bauer and Springel 2012, MNRAS, 423, 3102, as described above.
 
 **TURB\_DRIVING\_SPECTRUMGRID**: This activates on-the-fly calculation of the turbulent velocity, vorticity, density, and smoothed-velocity power spectra; the power spectra are calculated over a range of modes and dumped to files titled "powerspec\_X\_NNN.txt" where NNN is the file number and X denotes the quantity the power spectrum is taken of (e.g. velocity, smoothed velocity, etc). The columns in these outputs are (1) k (Fourier mode number), (2) power per mode at k, (3) number of modes in the discrete interval in k, and (4) total discrete power over all modes at that k. To convert to a 'normal' power spectrum, and get e.g. the power per log-interval in k, take column (2) times the cube of column (1). The value to which you set TURB\_DRIVING\_SPECTRUMGRID determines the grid linear size (in each dimension) to which the quantities will be projected in taking the power spectrum. Users of this module should cite Bauer and Springel 2012, MNRAS, 423, 3102, as described above.
-
-**TURB\_DRIVING\_DUMPSPECTRUM**: Compiles in a code module that allows via restart-flag 6 the calculation of a gas velocity power spectrum of a snapshot with an adjustable box (user defined center and size). Use this if you want to compute a power spectrum from an existing snapshot which was produced without TURB\_DRIVING\_SPECTRUMGRID active. Users of this module should cite Bauer and Springel 2012, MNRAS, 423, 3102, as described above.
 
 
 
@@ -2158,10 +2155,13 @@ Here, we will list and describe some of these, but this will necessarily be an i
     Grain_Internal_Density      1.0     % internal/material density of grains in g/cm^3
     Grain_Size_Min              1.e-6   % minimum grain size in cm
     Grain_Size_Max              1.e-4   % maximum grain size in cm
+    Grain_Size_Spectrum_Powerlaw  0.5   % power-law distribution of grain sizes (dm/dlnr~r^x)
 
-**Grain_Internal_Density**: This specifies the internal or material density of the grains (all grains are assumed to have the same density), in cgs (g/cm^3). This (together with the code units and grain sizes) will determine the grain drag forces.
+**Grain\_Internal\_Density**: This specifies the internal or material density of the grains (all grains are assumed to have the same density), in cgs (g/cm^3). This (together with the code units and grain sizes) will determine the grain drag forces.
 
-**Grain_Size_Min**/**Grain_Size_Max**: Minimum/maximum grain size (in cm). By default, the code will uniformly distribute grain "super-particles" in log-size between the minimum and maximum sizes. If you wish to hard-code grain sizes in the initial conditions, or modify the grain size spectrum generated upon startup of the simulation, you just need to modify this line in `init.c` (specifically look for the line containing `All.Grain_Size_Min`, which sets the variable `P[i].Grain_Size` used in the computations).
+**Grain\_Size\_Min**/**Grain\_Size\_Max**: Minimum/maximum grain size (in cm). By default, the code will uniformly distribute grain "super-particles" in log-size between the minimum and maximum sizes. If you wish to hard-code grain sizes in the initial conditions, or modify the grain size spectrum generated upon startup of the simulation, you just need to modify this line in `init.c` (specifically look for the line containing `All.Grain_Size_Min`, which sets the variable `P[i].Grain_Size` used in the computations). If you set `Grain_Size_Max` less than or equal to `Grain_Size_Min`, the grains will all be assigned the same size (equal to `Grain_Size_Min`).
+
+**Grain\_Size\_Spectrum\_Powerlaw**: This specifies a desired power-law distribution of grain sizes. If `Grain_Size_Max` is less than `Grain_Size_Min`, or this is =0, this will not activate (the grains will be assigned the uniform size distribution as above, and whatever masses the user initially assigns). If this is set to a value not =0, then the grain super-particle masses will be re-weighted, so that the **number** of super-particles per logarithmic interval in mass is still constant, as described above, but the *mass* of each super-particle -- i.e. the number of actual micro-physical grains it represents -- will vary. This allows you to retain good numerical sampling of all grain sizes even if some grain sizes are very rare, proportionally speaking. Specifically, this flag assumes the initial dust super-particles all have equal mass, then re-weights them accordingly (conserving the **total** mass of dust, but not the mass-per-particle), so that the final distribution samples number of grains uniformly in log of grain size, and gives $d M_{\rm grains}^{\rm total} / d\ln{R_{\rm grain}} \propto R_{\rm grain}^{\alpha}$, where $\alpha=$ `Grain_Size_Spectrum_Powerlaw`. Note, for grains of constant internal (material) density, this is related to the usual grain size spectrum $dN_{\rm grains}/d R_{\rm grain} \propto R_{\rm grain}^{-\beta}$ by $\alpha=4-\beta$ (so, for example, the classic MRN size spectrum corresponds to `Grain_Size_Spectrum_Powerlaw`=0.5, as set in the example above).
 
 
 <a name="params-optional-sf"></a>
@@ -2585,26 +2585,15 @@ One more minor note: the "kernel length" (or, for SPH, the "smoothing length") s
 
 First note that there are many, many public codes and libraries (for python, IDL, C, and other languages) which can read and interact with GIZMO snapshots (or GADGET snapshots, which follow the same format). This includes for example [YT](http://yt-project.org/), [PynBody](https://ascl.net/1305.002), [PyGadgetReader](https://ascl.net/1411.001), [SPHGR](https://ascl.net/1502.012), [PyGad](https://ascl.net/code/v/1569), and more general tools like [MESHOID](https://github.com/omgspace/meshoid), [vaex](http://vaex.astro.rug.nl/), [Glue](http://glueviz.org/en/stable/), [TOPCAT](http://www.star.bris.ac.uk/~mbt/topcat/). Even more examples are given in the "Additional Resources" section below. But it is important to understand directly what is in your snapshots, in case these codes are not appropriate for your analysis (or you are running simulations with different physics). 
 
-In the source code, the folder "scripts" contains two routines to read output snapshots: "readsnap.pro" and "readsnap.py". The former is for IDL, the latter for python, but they function similarly. These can be used as a guide to illustrate how to read the snapshots. Note that these routines are specific to snapshots from simulations run including certain specific physics, and may have to be modified for the specific physics and conditions under which you run your simulation.
+In the source code, the folder "scripts" contains several routines to read output snapshots. The older routines, which are not very fast or efficient or robust, but are intended to demonstrate how to read a variety of file types in full generality, including the pure-binary files, are `readsnap.pro` and `readsnap.py`. The former is for IDL, the latter for python, but they function similarly. A more 'modern python' script, which is far more efficient time-and-memory-wise, is also provided as `load_from_snapshot.py`, but this only works for HDF5 outputs (if you want to leverage newer, more flexible features, you have to use a modern file format). These can be used as a guide to illustrate how to read the snapshots. Note that these routines are specific to snapshots from simulations run including certain specific physics, and may have to be modified for the specific physics and conditions under which you run your simulation.
 
-The routine "readsnap.py" can be called by standard python installations, below we discuss how to use it, for a *specific* example, where we assume one is trying to read the outputs of a cosmological simulation with galaxy formation, star formation, cooling, and super-massive black hole physics enabled at compilation time. You should use this as a guide, not as an exact template for your uses of the code!
+The routines `load_from_snapshot.py` and `readsnap.py` can be called by standard python installations, below we discuss how to use them, for a *specific* example, where we assume one is trying to read the outputs of a cosmological simulation with galaxy formation, star formation, cooling, and super-massive black hole physics enabled at compilation time. You should use this as a guide, not as an exact template for your uses of the code!
 
-The routine can be called by the following:
-
-    P=gadget_lib.readsnap('file_directory',snapshot_number,particle_type,cosmological=?,skip_bh=?,header_only=?)
-    - "file_directory" is the snapshot file parent directory
-    - "snapshot_number" is the snap number (as an integer, so "100->100" but "050->50")
-    - "particle type" is which particle type you want to read (more below)
-    - "cosmological" = 0 (no cosmological conversions) or = 1 (if you set it =1, it will convert the units of the outputs to *physical*, 
-       not comoving, and put all the Hubble "h" factors in for you so you don't have to worry about them)
-    - "skip_bh" = dont read BH-specific fields for particles of type 5 (useful if your snap did not use BH models, but did include "dummy" particles of type 5)
-    - "header_only" = return the header info into "P" instead of the particle info
-
-when run, this will return into "P" a list of many properties which can then be accessed; each array (which are described below) can be accessed with some shorthand name, as P['shorthand\_name']
+For specific instructions on using either routine, you can open the raw python file and read the help text, or from within python, import the files and then type `help(load_from_snapshot)` or `help(readsnap)` and it should display that same help text -- this gives a full description of the syntax and variable names you need to pass to the program. For example, you can copy the entire data block for elements of a given type with the syntax `P=readsnap(snapshot_directory,snapshot_number,element_type,optional_flags...)` or load a specific set of values, say the element coordinates, with the syntax `xyz_coordinates=load_from_snapshot('Coordinates',element_type,snapshot_directory,snapshot_number,optional_flags...)`. In both cases you feed it the parent directory of the snapshot files, the snapshot number (as an integer), the desired particle/element type (more below), and a number of optional flags if desired (e.g. you can tell it to convert the units from co-moving to physical, or not, as you choose). For `load_from_snapshot.py`, you load a specific field from the snapshots by passing the name of that field (more below, with examples of specific fields) -- it can read any field that exists in the snapshot files, but can only do this by relying on the HDF5 structure. For `readsnap.py` it pre-loads a large number of common fields into a master structure `P` which you can then access with a shorthand name as `P['shorthand_name']` (this takes more time and memory and cannot find fields it is not pre-programmed to look for, but it can read the un-formatted binary files and grab everything at once). 
 
 Each file contains many fields. If the file is in the old binary format, you need to know exactly ahead of time what the fields are and what order they are in (the reader routine will do this). *Much* easier is if the files are in HDF5 format. This is always recommended for snapshot outputs. 
 
-All files include a header block with the following quantities/flags:
+All files include a header block with (at minimum) the following quantities/flags:
 
     Time = time at the moment of the snapshot: for non-cosmological runs, this is an actual time, in h^-1 Gyr; in cosmological runs it is the SCALE FACTOR (=1/(1+z))
 
@@ -2625,7 +2614,7 @@ All files include a header block with the following quantities/flags:
     HubbleParam = hubble parameter "h" for the run 
     Redshift = redshift of snapshot
 
-Then, for *each* particle type, there are a set of structures/arrays; these are sub-divided by PARTICLE TYPE. particle type=0 is *always* gas. The other particle types are *always* collisionless. What we chose them to represent is arbitrary and depends on the compile-time flags in the code. For the default example we are discussing here:
+Then, for *each* particle type, there are a set of structures/arrays; these are sub-divided by PARTICLE TYPE. particle type=0 is *always* gas. The other particle types are not. What we chose them to represent is arbitrary and depends on the compile-time flags in the code. For the default example we are discussing here:
 
     0 = gas
     1 = high-resolution dark matter
@@ -2633,9 +2622,9 @@ Then, for *each* particle type, there are a set of structures/arrays; these are 
     4 = stars formed during the simulation
     5 = black holes (usually) -- *some* of our runs use this as another reservoir for 'dummy collisionless particles'
 
-For each particle, then, there are a wide range of data the routine will attempt to read. See the routine itself to see how these are embedded in the snapshots and extracted. Here we will outline what each quantity is. Each entry in **bold** below refers to the name of the HDF5 block, containing the data. The term in parentheses (P['x']) denotes the name of the block (usually some shorthand) which is returned by the routine readsnap.py (this can be trivially modified by the user). Then we give the description of what youre looking at.
+For each particle, then, there are a wide range of data the routine will attempt to read. See the routine itself to see how these are embedded in the snapshots and extracted. Here we will outline what each quantity is. Each entry in **bold** below refers to the name of the HDF5 block, containing the data. The term in parentheses (P['x']) denotes the name of the block (usually some shorthand) which is returned by the routine `readsnap.py` (this can be trivially modified by the user). If you use `load_from_snapshot.py`, each data structure can be retrieved by asking for it with the proper name used by the HDF5 file. Here we give the description of what youre looking at.
 
-**Coordinates** (output by readsnap routine as P['p']): a [N,3] array where N is the number of particles (of the given type). Elements [i,0], [i,1], [i,3] give the x, y, z (respectively) coordinate positions of particle "i"
+**Coordinates** (output by `readsnap.py` routine as P['p']): a [N,3] array where N is the number of particles (of the given type). Elements [i,0], [i,1], [i,3] give the x, y, z (respectively) coordinate positions of particle "i"
 
 **Velocities** (P['v']): [N,3] array (same format as Coordinates) with x, y, z particle velocities
 
@@ -2648,7 +2637,7 @@ Certain quantities are specific to only gas particles. These include:
 
 **InternalEnergy** (P['u']): [N]-element array, particle internal energy (specific energy per unit mass in code units). units are *physical*
 
-Note: to convert internal energy to TEMPERATURE, use the following: 
+Note: to convert internal energy to TEMPERATURE, use something like the following: 
 
     Temperature = mean_molecular_weight * (gamma-1) * InternalEnergy / k_Boltzmann 
     k_Boltzmann is the Boltzmann constant

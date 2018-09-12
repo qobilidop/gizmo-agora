@@ -1395,10 +1395,19 @@ extern struct global_data_all_processes
     
     
     
+
 #ifdef GRAIN_FLUID
+#ifdef GRAIN_RDI_TESTPROBLEM
+    double Grain_Charge_Parameter;
+    double Dust_to_Gas_Mass_Ratio;
+    double Vertical_Gravity_Strength;
+    double Vertical_Grain_Accel;
+    double Vertical_Grain_Accel_Angle;
+#endif
     double Grain_Internal_Density;
     double Grain_Size_Min;
     double Grain_Size_Max;
+    double Grain_Size_Spectrum_Powerlaw;
 #endif
     
     
@@ -1570,15 +1579,6 @@ extern struct global_data_all_processes
   int StSeed;
 #endif
 
-#ifdef TURB_DRIVING_DUMPSPECTRUM 
-  double BoxWidth;     /*lenght of the transformation box side*/
-  double BoxCenter_x;  /*x coordinate of the box center*/
-  double BoxCenter_y;  /*y coordinate of the box center*/
-  double BoxCenter_z;  /*z coordinate of the box center*/
-  int FourierGrid;     /*dimension of the Fourier transform (actual size is FourierGrid^3)*/
-#endif
-
-    
 #if defined(COOLING) && defined(COOL_GRACKLE)
     code_units GrackleUnits;
 #endif

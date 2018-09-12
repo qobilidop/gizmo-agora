@@ -887,6 +887,28 @@ void read_parameter_file(char *fname)
         
         
 #ifdef GRAIN_FLUID
+#ifdef GRAIN_RDI_TESTPROBLEM
+        strcpy(tag[nt],"Grain_Charge_Parameter");
+        addr[nt] = &All.Grain_Charge_Parameter;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt],"Dust_to_Gas_Mass_Ratio");
+        addr[nt] = &All.Dust_to_Gas_Mass_Ratio;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt],"Vertical_Gravity_Strength");
+        addr[nt] = &All.Vertical_Gravity_Strength;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt],"Vertical_Grain_Accel");
+        addr[nt] = &All.Vertical_Grain_Accel;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt],"Vertical_Grain_Accel_Angle");
+        addr[nt] = &All.Vertical_Grain_Accel_Angle;
+        id[nt++] = REAL;
+#endif
+
         strcpy(tag[nt],"Grain_Internal_Density");
         addr[nt] = &All.Grain_Internal_Density;
         id[nt++] = REAL;
@@ -897,6 +919,10 @@ void read_parameter_file(char *fname)
 
         strcpy(tag[nt],"Grain_Size_Max");
         addr[nt] = &All.Grain_Size_Max;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt],"Grain_Size_Spectrum_Powerlaw");
+        addr[nt] = &All.Grain_Size_Spectrum_Powerlaw;
         id[nt++] = REAL;
 #endif
         
@@ -1435,28 +1461,6 @@ void read_parameter_file(char *fname)
          ST_Seed         42
          ST_SpectForm    1
          */
-#endif
-
-#ifdef TURB_DRIVING_DUMPSPECTRUM
-      strcpy(tag[nt], "BoxWidth");
-      addr[nt] = &All.BoxWidth;
-      id[nt++] = REAL;
-
-      strcpy(tag[nt], "BoxCenter_x");
-      addr[nt] = &All.BoxCenter_x;
-      id[nt++] = REAL;
-
-      strcpy(tag[nt], "BoxCenter_y");
-      addr[nt] = &All.BoxCenter_y;
-      id[nt++] = REAL;
-
-      strcpy(tag[nt], "BoxCenter_z");
-      addr[nt] = &All.BoxCenter_z;
-      id[nt++] = REAL;
-
-      strcpy(tag[nt], "TransformSize");
-      addr[nt] = &All.FourierGrid;
-      id[nt++] = INT;
 #endif
 
 

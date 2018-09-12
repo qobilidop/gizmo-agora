@@ -710,6 +710,8 @@ double CoolingRate(double logT, double rho, double n_elec_guess, int target)
 #endif
       
         
+
+        
 #if defined(COOL_METAL_LINES_BY_SPECIES) && defined(COOL_LOW_TEMPERATURES)
         /* Dust collisional heating */
         double Tdust = 30.;
