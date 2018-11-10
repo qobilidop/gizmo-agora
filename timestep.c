@@ -83,6 +83,17 @@ void find_timesteps(void)
     if(All.HighestActiveTimeBin == All.HighestOccupiedTimeBin || dt_displacement == 0)
         find_dt_displacement_constraint(All.cf_hubble_a * All.cf_atime * All.cf_atime);
  
+#ifdef BH_WIND_SPAWN
+    if(All.HighestActiveTimeBin >= All.HighestOccupiedTimeBin-5)
+    {
+        double local_max_u=0.0, global_max_u, global_max_t;
+        for(i = 0; i < NumPart; i++) {if(P[i].Type==0) {local_max_u = DMAX( local_max_u, SphP[i].InternalEnergy );}}
+        MPI_Allreduce(&local_max_u, &global_max_u, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        double u_to_temp_fac = PROTONMASS / BOLTZMANN * GAMMA_MINUS1 * All.UnitEnergy_in_cgs / All.UnitMass_in_g;
+        global_max_t = global_max_u * u_to_temp_fac;
+        if(ThisTask==0)  printf("Global Maximum SphP.u = %g (Max Temperature = %g) \n", global_max_u, global_max_t);
+    }
+#endif
     
 #ifdef DIVBCLEANING_DEDNER
     /* need to calculate the global fastest wave speed to manage the damping terms stably */
@@ -335,6 +346,14 @@ integertime get_timestep(int p,		/*!< particle index */
             az += SphP[p].TurbAccel[2];
         }
 #endif
+#ifdef RT_RAD_PRESSURE_OUTPUT
+        if(P[p].Type==0)
+        {
+            ax += SphP[p].RadAccel[0];
+            ay += SphP[p].RadAccel[1];
+            az += SphP[p].RadAccel[2];
+        }
+#endif
         
         if(P[p].Type == 0)
         {
@@ -513,6 +532,68 @@ integertime get_timestep(int p,		/*!< particle index */
             
 
             
+#if defined(RADTRANSFER)
+            {
+                int kf;
+                double dt_rad = 1.e10 * dt;
+                for(kf=0;kf<N_RT_FREQ_BINS;kf++)
+                {
+#if defined(RT_DIFFUSION_EXPLICIT) && !defined(RT_EVOLVE_FLUX) /* for explicit diffusion, we include the usual second-order diffusion timestep */
+                    double gradETmag=0; for(k=0;k<3;k++) {gradETmag += SphP[p].Gradients.E_gamma_ET[kf][k]*SphP[p].Gradients.E_gamma_ET[kf][k];}
+                    double L_ETgrad_inv = sqrt(gradETmag) / (1.e-37 + SphP[p].E_gamma[kf] * SphP[p].Density/P[p].Mass);
+                    double L_RT_diffusion = DMAX(L_particle , 1./(L_ETgrad_inv + 1./L_particle)) * All.cf_atime;
+                    double dt_rt_diffusion = dt_prefac_diffusion * L_RT_diffusion*L_RT_diffusion / (MIN_REAL_NUMBER + rt_diffusion_coefficient(p,kf));
+                    double dt_advective = dt_rt_diffusion * DMAX(1,DMAX(L_particle , 1/(MIN_REAL_NUMBER + L_ETgrad_inv))*All.cf_atime / L_RT_diffusion);
+                    if(dt_advective > dt_rt_diffusion) {dt_rt_diffusion *= 1. + (1.-SphP[p].Lambda_FluxLim[kf]) * (dt_advective/dt_rt_diffusion-1.);}
+                    if((SphP[p].Lambda_FluxLim[kf] <= 0)||(dt_rt_diffusion<=0)) {dt_rt_diffusion = 1.e9 * dt;}
+                    if((SphP[p].E_gamma[kf] <= MIN_REAL_NUMBER) || (SphP[p].E_gamma_Pred[kf] <= MIN_REAL_NUMBER)) {dt_rt_diffusion = dt_advective;}
+#ifdef SUPER_TIMESTEP_DIFFUSION
+                    if(dt_rt_diffusion < dt_superstep_explicit) dt_superstep_explicit = dt_rt_diffusion; // explicit time-step
+                    double dt_advective = dt_rt_diffusion * DMAX(1,DMAX(L_particle , 1/(MIN_REAL_NUMBER + L_ETgrad_inv))*All.cf_atime / L_RT_diffusion);
+                    if(dt_advective < dt_rad) dt_rad = dt_advective; // 'advective' timestep: needed to limit super-stepping
+#else
+                    if(dt_rt_diffusion < dt_rad) dt_rad = dt_rt_diffusion; // normal explicit time-step
+#endif
+#endif
+                }
+                /* even with a fully-implicit solver, we require a CFL-like criterion on timesteps (much larger steps allowed for stability, but not accuracy) */
+                dt_courant = All.CourantFac * (L_particle*All.cf_atime) / (RT_SPEEDOFLIGHT_REDUCTION * (C/All.UnitVelocity_in_cm_per_s)); /* courant-type criterion, using the reduced speed of light */
+#ifdef RT_M1
+#ifndef GALSF
+                dt_rad = dt_courant;
+#endif
+                double L_RT_diffusion = L_particle*All.cf_atime;
+                for(kf=0;kf<N_RT_FREQ_BINS;kf++)
+                {
+                    double dt_rt_diffusion = dt_prefac_diffusion * L_RT_diffusion*L_RT_diffusion / (MIN_REAL_NUMBER + rt_diffusion_coefficient(p,kf));
+#ifdef GALSF
+                    /* ignore particles where the radiation energy density is basically non-existant */
+                    if((SphP[p].E_gamma[kf] <= MIN_REAL_NUMBER) ||
+                       (SphP[p].E_gamma_Pred[kf] <= MIN_REAL_NUMBER) ||
+                       (SphP[p].E_gamma[kf] < 1.e-5*P[p].Mass*SphP[p].InternalEnergy)) {dt_rt_diffusion = 1.e10 * dt;}
+#endif
+                    if(dt_rt_diffusion < dt_rad) dt_rad = dt_rt_diffusion;
+                }
+                if(dt_rad > 1.e3*dt_courant) {dt_rad = 1.e3*dt_courant;}
+                if(dt_courant > dt_rad) {dt_rad = dt_courant;}
+#if defined(RT_CHEM_PHOTOION)
+                /* since we're allowing rather large timesteps above in special conditions, make sure this doesn't overshoot the recombination time for the opacity to 
+                    change, which can happen particularly for ionizing photons */
+                if(kf==RT_FREQ_BIN_H0)
+                {
+                    double ne_cgs = (SphP[p].Density * All.cf_a3inv * All.UnitDensity_in_cgs * All.HubbleParam * All.HubbleParam) / PROTONMASS;
+                    double dt_recombination = All.CourantFac * (3.3e12/ne_cgs) / (All.UnitTime_in_s / All.HubbleParam);
+                    double dt_change = 1.e10*dt; if((SphP[p].E_gamma[kf] > 0)&&(fabs(SphP[p].Dt_E_gamma[kf])>0)) {dt_change = SphP[p].E_gamma[kf] / fabs(SphP[p].Dt_E_gamma[kf]);}
+                    dt_recombination = DMIN(DMAX(dt_recombination,dt_change), DMAX(dt_courant,dt_rad));
+                    if(dt_recombination < dt_rad) {dt_rad = dt_recombination;}
+                }
+#endif
+#else
+                if(dt_courant < dt_rad) {dt_rad = dt_courant;}
+#endif
+                if(dt_rad < dt) dt = dt_rad;
+            }
+#endif
     
     
 #ifdef VISCOSITY
@@ -638,6 +719,14 @@ integertime get_timestep(int p,		/*!< particle index */
         } // closes if(P[p].Type == 0) [gas particle check] //
     
     
+#ifdef DM_SIDM
+    /* Reduce time-step if this particle got interaction probabilities > 0.2 during the last time-step */
+    if(P[p].dt_step_sidm > 0)
+    {
+        if(P[p].dt_step_sidm < dt) {dt = P[p].dt_step_sidm * All.Timebase_interval;} else {P[p].dt_step_sidm = 0;}
+        if(dt < All.MinSizeTimestep) {printf("Warning: A Timestep below the limit `MinSizeTimestep' is being used to keep self interaction probabilities smaller than 0.2. dt = %g\n",dt);}
+    }
+#endif
     
     
     // add a 'stellar evolution timescale' criterion to the timestep, to prevent too-large jumps in feedback //
@@ -671,15 +760,18 @@ integertime get_timestep(int p,		/*!< particle index */
         double dt_accr = 1.e-2 * 4.2e7 * SEC_PER_YEAR / All.UnitTime_in_s;
         if(BPP(p).BH_Mdot > 0 && BPP(p).BH_Mass > 0)
         {
-#if defined(BH_GRAVCAPTURE_GAS) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(BH_GRAVCAPTURE_GAS) || defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK)
             /* really want prefactor to be ratio of median gas mass to bh mass */
             dt_accr = 0.001 * DMAX(BPP(p).BH_Mass, All.MaxMassForParticleSplit) / BPP(p).BH_Mdot;
+#if defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK)
+            dt_accr *= DMAX(0.1, All.BAL_f_accretion);
+#endif // BH_WIND_CONTINUOUS
 #ifdef SINGLE_STAR_FORMATION
             dt_accr = 0.1 * DMAX(BPP(p).BH_Mass, 0.1*All.MinMassForParticleMerger) / BPP(p).BH_Mdot;
 #endif
 #else
             dt_accr = 0.05 * DMAX(BPP(p).BH_Mass , All.MaxMassForParticleSplit) / BPP(p).BH_Mdot;
-#endif // defined(BH_GRAVCAPTURE_GAS) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#endif // defined(BH_GRAVCAPTURE_GAS) || defined(BH_WIND_CONTINUOUS)
         } // if(BPP(p).BH_Mdot > 0 && BPP(p).BH_Mass > 0)
 #ifdef BH_SEED_GROWTH_TESTS
             double dt_evol = 1.e4 * SEC_PER_YEAR / All.UnitTime_in_s;

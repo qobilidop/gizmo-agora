@@ -75,6 +75,9 @@ void blackhole_feed_loop(void)
             {
                 BlackholeDataIn[j].Pos[k] = P[place].Pos[k];
                 BlackholeDataIn[j].Vel[k] = P[place].Vel[k];
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+                BlackholeDataIn[j].Jgas_in_Kernel[k] = BlackholeTempInfo[P[place].IndexMapToTempStruc].Jgas_in_Kernel[k];
+#endif
             }
 #if defined(BH_GRAVCAPTURE_GAS)
             BlackholeDataIn[j].mass_to_swallow_edd = BlackholeTempInfo[P[place].IndexMapToTempStruc].mass_to_swallow_edd;
@@ -85,7 +88,7 @@ void blackhole_feed_loop(void)
 #ifdef BH_ALPHADISK_ACCRETION
             BlackholeDataIn[j].BH_Mass_AlphaDisk = BPP(place).BH_Mass_AlphaDisk;
 #endif
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) 	|| defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) 	|| defined(BH_WIND_CONTINUOUS)
             BlackholeDataIn[j].BH_disk_hr = P[place].BH_disk_hr;
 #endif
             BlackholeDataIn[j].Density = BPP(place).DensAroundStar;
@@ -164,6 +167,9 @@ void blackhole_feed_loop(void)
                     BPP(place).BH_MinPotPos[k] = BlackholeDataOut[j].BH_MinPotPos[k];
             }
 #endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+            BlackholeTempInfo[P[place].IndexMapToTempStruc].BH_angle_weighted_kernel_sum += BlackholeDataOut[j].BH_angle_weighted_kernel_sum;
+#endif
         }
         
         myfree(BlackholeDataOut);
@@ -196,7 +202,14 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
     double meddington, medd_max_accretable, mass_to_swallow_edd, eddington_factor;
 #endif
     
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    double norm, theta, BH_disk_hr, *Jgas_in_Kernel;
+    double BH_angle_weighted_kernel_sum=0;
+#endif
 
+#if defined(BH_WIND_KICK) && !defined(BH_GRAVCAPTURE_GAS)
+    double f_accreted=0; 
+#endif
     
 #ifdef BH_THERMALFEEDBACK
     double energy;
@@ -232,6 +245,10 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
 #endif
         velocity = P[target].Vel;
         id = P[target].ID;
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+        Jgas_in_Kernel = BlackholeTempInfo[P[target].IndexMapToTempStruc].Jgas_in_Kernel;
+        BH_disk_hr = P[target].BH_disk_hr;
+#endif
 #if defined(BH_GRAVCAPTURE_GAS) && defined(BH_ENFORCE_EDDINGTON_LIMIT) && !defined(BH_ALPHADISK_ACCRETION)
         mass_to_swallow_edd = BlackholeTempInfo[P[target].IndexMapToTempStruc].mass_to_swallow_edd;
 #endif
@@ -250,7 +267,7 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
 #endif
         velocity = BlackholeDataGet[target].Vel;
         id = BlackholeDataGet[target].ID;
-#if defined(FLAG_NOT_IN_PUBLIC_CODE)  || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE)  || defined(BH_WIND_CONTINUOUS)
         Jgas_in_Kernel = BlackholeDataGet[target].Jgas_in_Kernel;
         BH_disk_hr = BlackholeDataGet[target].BH_disk_hr;
 #endif
@@ -279,6 +296,13 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
 #endif
 #endif
 
+#if defined(BH_WIND_KICK) && !defined(BH_GRAVCAPTURE_GAS)
+    /* DAA: increase the effective mass-loading of BAL winds to reach the desired momentum flux given the outflow velocity "All.BAL_v_outflow" chosen
+       --> appropriate for cosmological simulations where particles are effectively kicked from ~kpc scales
+           (i.e. we need lower velocity and higher mass outflow rates compared to accretion disk scales) - */
+    f_accreted = All.BAL_f_accretion;
+    if((All.BlackHoleFeedbackFactor > 0) && (All.BlackHoleFeedbackFactor != 1.)) {f_accreted /= All.BlackHoleFeedbackFactor;} else {if(All.BAL_v_outflow > 0) f_accreted = 1./(1. + fabs(1.*BH_WIND_KICK)*All.BlackHoleRadiativeEfficiency*(C/All.UnitVelocity_in_cm_per_s)/All.BAL_v_outflow);}
+#endif
     
     /* Now start the actual SPH computation for this BH particle */
     if(mode == 0)
@@ -294,6 +318,9 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
     //int particles_swallowed_this_bh_this_process = 0;
     //int particles_swallowed_this_bh_this_process_max = 1;
     
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    BH_angle_weighted_kernel_sum = 0;
+#endif
     
     while(startnode >= 0)
     {
@@ -323,17 +350,20 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
 
 #ifdef BH_REPOSITION_ON_POTMIN
                         /* check if we've found a new potential minimum which is not moving too fast to 'jump' to */
-#if (BH_REPOSITION_ON_POTMIN == 1) 
-                        if( (P[j].Potential < minpot) && (P[j].Type == 4) )   // DAA: only if it is a star particle
-#else
-                        if(P[j].Potential < minpot)
+                        double boundedness_function, potential_function; boundedness_function = P[j].Potential + 0.5 * vrel*vrel * All.cf_atime; potential_function = P[j].Potential;
+#if (BH_REPOSITION_ON_POTMIN == 2)
+                        potential_function = boundedness_function; // jumps based on -most bound- particle, not just deepest potential (down-weights fast-movers)
+#endif
+                        if(potential_function < minpot)
+#if (BH_REPOSITION_ON_POTMIN == 1)
+                        if( P[j].Type == 4 && vrel <= vesc )   // DAA: only if it is a star particle & bound
+#endif
+#if (BH_REPOSITION_ON_POTMIN == 2)
+                        if( P[j].Type != 0 )   // allow stars or dark matter but exclude gas, it's too messy!
 #endif
                         {
-                            if(vrel <= vesc)
-                            {
-                                minpot = P[j].Potential;
-                                for(k = 0; k < 3; k++) minpotpos[k] = P[j].Pos[k];
-                            }
+                            minpot = potential_function;
+                            for(k = 0; k < 3; k++) minpotpos[k] = P[j].Pos[k];
                         }
 #endif
 
@@ -387,6 +417,9 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
 #if defined(BH_ENFORCE_EDDINGTON_LIMIT) && !defined(BH_ALPHADISK_ACCRETION)
                                         /* if Eddington-limited and NO alpha-disk, do this stochastically */
                                         p = 1/eddington_factor;
+#if defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK)
+                                        p /= All.BAL_f_accretion; // we need to accrete more, then remove the mass in winds
+#endif
                                         w = get_random_number(P[j].ID);
                                         if(w < p)
                                         {
@@ -433,6 +466,19 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
 /* DAA: for stochastic winds (BH_WIND_KICK) we remove a fraction of mass from gas particles prior to kicking
  * --> need to increase the probability here to balance black hole growth   
  */
+#ifdef BH_WIND_KICK
+                            if(f_accreted>0) 
+                            {
+                                p /= f_accreted;
+
+                                /* DAA: compute outflow probability when "bh_mass_withdisk < mass"
+                                    - we don't need to enforce mass conservation in this case 
+                                    - relevant only in low-res sims where the BH seed mass is much lower than the gas particle mass 
+                                    - TODO: replace mdot below by mdot_alphadisk if BH_ALPHADISK_ACCRETION? */
+                                if((bh_mass_withdisk - mass) < 0)
+                                    p = ( (1-f_accreted)/f_accreted ) * mdot * dt * wk / rho;
+                            }
+#endif
 
                             
                             w = get_random_number(P[j].ID);
@@ -444,12 +490,26 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
                                 if(P[j].SwallowID < id)
                                 {
                                    P[j].SwallowID = id;
+#ifdef BH_WIND_KICK
+                                   mass_markedswallow += P[j].Mass*f_accreted;
+#else
                                    mass_markedswallow += P[j].Mass;
+#endif
                                 }
                             } // if(w < p)
 #endif // BH_SWALLOWGAS
 
                             
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+                            /* calculate the angle-weighting for the photon momentum */
+                            if((mdot>0)&&(dt>0)&&(r>0)&&(P[j].SwallowID==0))
+                            {
+                                /* cos_theta with respect to disk of BH is given by dot product of r and Jgas */
+                                norm=0; for(k=0;k<3;k++) norm+=(dpos[k]/r)*Jgas_in_Kernel[k];
+                                norm=fabs(norm); theta=acos(norm);
+                                BH_angle_weighted_kernel_sum += bh_angleweight_localcoupling(j,BH_disk_hr,theta);
+                            }
+#endif
                             
 #ifdef BH_THERMALFEEDBACK
                             {
@@ -491,6 +551,9 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
     /* Now collect the result at the right place */
     if(mode == 0)
     {
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+        BlackholeTempInfo[P[target].IndexMapToTempStruc].BH_angle_weighted_kernel_sum += BH_angle_weighted_kernel_sum;  /* need to correct target index */
+#endif
 #ifdef BH_REPOSITION_ON_POTMIN
         BPP(target).BH_MinPot = minpot;
         for(k = 0; k < 3; k++)
@@ -499,6 +562,9 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
     }
     else
     {
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+        BlackholeDataResult[target].BH_angle_weighted_kernel_sum = BH_angle_weighted_kernel_sum;
+#endif
 #ifdef BH_REPOSITION_ON_POTMIN
         BlackholeDataResult[target].BH_MinPot = minpot;
         for(k = 0; k < 3; k++)

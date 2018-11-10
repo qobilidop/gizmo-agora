@@ -130,10 +130,10 @@ void compute_potential(void)
         }
 
         GravDataIn[j].Type = P[place].Type;
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         GravDataIn[j].Mass = P[place].Mass;
 #endif
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL)
+#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL)
         double h_place = PPP[place].Hsml;
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
         h_place = PPP[place].AGS_Hsml;
@@ -145,7 +145,7 @@ void compute_potential(void)
             GravDataIn[j].Soft = All.ForceSoftening[P[place].Type];
         }
 #endif
-#if defined(ADAPTIVE_GRAVSOFT_FORGAS) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(ADAPTIVE_GRAVSOFT_FORGAS) && !defined(RT_USE_GRAVTREE)
         if((P[place].Type == 0) && (PPP[place].Hsml > All.ForceSoftening[P[place].Type]))
         {
             GravDataIn[j].Soft = PPP[place].Hsml;

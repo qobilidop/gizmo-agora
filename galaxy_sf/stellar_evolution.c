@@ -81,7 +81,7 @@ double calculate_relative_light_to_mass_ratio_from_imf(double stellar_age_in_gyr
 }
 
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && defined(GALSF))
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || (defined(RT_CHEM_PHOTOION) && defined(GALSF))
 double particle_ionizing_luminosity_in_cgs(long i)
 {
     double lm_ssp=0;

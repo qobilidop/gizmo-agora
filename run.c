@@ -237,6 +237,44 @@ void calculate_non_standard_physics(void)
 #endif
     
     
+#ifdef RADTRANSFER
+    
+#if defined(RT_SOURCE_INJECTION)
+#if !defined(GALSF)
+    if(Flag_FullStep) 
+#endif
+    {
+        rt_source_injection(); /* source injection into neighbor gas particles (only on full timesteps) */
+    }
+#endif
+    
+#if defined(RT_DIFFUSION_CG)
+    /* use the CG method to solve the RT diffusion equation implicitly for all particles */
+    if(Flag_FullStep) /* only do it for full timesteps */
+    {
+#ifndef IO_REDUCED_MODE
+        if(ThisTask == 0) {printf("start CG iteration for radiative transfer (diffusion equation)...\n"); //fflush(stdout);}
+#endif
+        All.Radiation_Ti_endstep = All.Ti_Current;
+        double timeeach = 0, timeall = 0, tstart = 0, tend = 0;
+        tstart = my_second();
+        rt_diffusion_cg_solve();
+        tend = my_second();
+        timeeach = timediff(tstart, tend);
+        MPI_Allreduce(&timeeach, &timeall, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        All.Radiation_Ti_begstep = All.Radiation_Ti_endstep;
+    }
+#endif
+
+#if defined(RT_CHEM_PHOTOION) && (!defined(COOLING) || defined(RT_COOLING_PHOTOHEATING_OLDFORMAT))
+    /* chemistry updated at sub-stepping as well */
+    rt_update_chemistry();
+#ifndef IO_REDUCED_MODE
+    if(Flag_FullStep) {rt_write_chemistry_stats();}
+#endif
+#endif
+    
+#endif
     
     
 #ifdef BLACK_HOLES
@@ -259,6 +297,14 @@ void calculate_non_standard_physics(void)
             All.TimeNextOnTheFlyFoF += All.TimeBetOnTheFlyFoF;
     }
 #endif // ifdef FOF
+#ifdef BH_WIND_SPAWN
+    if(GlobNumForceUpdate > All.TreeDomainUpdateFrequency * All.TotNumPart)
+    {
+        spawn_bh_wind_feedback();
+        rearrange_particle_sequence();
+        force_treebuild(NumPart, NULL);
+    }
+#endif
 #endif // ifdef BLACK_HOLES or GALSF_SUBGRID_WINDS
     
     
@@ -853,6 +899,9 @@ void write_cpu_log(void)
 	      "   agsimbal   %10.2f  %5.1f%%\n"
           "   agsmisc    %10.2f  %5.1f%%\n"
 #endif
+#ifdef DM_SIDM
+          "sidm_total    %10.2f  %5.1f%%\n"
+#endif
 	      "pmgrav        %10.2f  %5.1f%%\n"
 	      "hydro         %10.2f  %5.1f%%\n"
 	      "   density    %10.2f  %5.1f%%\n"
@@ -899,6 +948,9 @@ void write_cpu_log(void)
     All.CPU_Sum[CPU_AGSDENSCOMM], (All.CPU_Sum[CPU_AGSDENSCOMM]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_AGSDENSWAIT], (All.CPU_Sum[CPU_AGSDENSWAIT]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_AGSDENSMISC], (All.CPU_Sum[CPU_AGSDENSMISC]) / All.CPU_Sum[CPU_ALL] * 100,
+#endif
+#ifdef DM_SIDM
+    All.CPU_Sum[CPU_SIDMSCATTER], (All.CPU_Sum[CPU_SIDMSCATTER])/ All.CPU_Sum[CPU_ALL] * 100,
 #endif
     All.CPU_Sum[CPU_MESH], (All.CPU_Sum[CPU_MESH]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_DENSCOMPUTE] + All.CPU_Sum[CPU_DENSWAIT] + All.CPU_Sum[CPU_DENSCOMM] + All.CPU_Sum[CPU_DENSMISC]

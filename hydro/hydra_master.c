@@ -234,8 +234,14 @@ struct hydrodata_in
     MyDouble E_gamma[N_RT_FREQ_BINS];
     MyDouble Kappa_RT[N_RT_FREQ_BINS];
     MyDouble RT_DiffusionCoeff[N_RT_FREQ_BINS];
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(HYDRO_SPH)
+#if defined(RT_EVOLVE_FLUX) || defined(HYDRO_SPH)
     MyDouble ET[N_RT_FREQ_BINS][6];
+#endif
+#ifdef RT_EVOLVE_FLUX
+    MyDouble Flux[N_RT_FREQ_BINS][3];
+#endif
+#ifdef RT_INFRARED
+    MyDouble Radiation_Temperature;
 #endif
 #endif
     
@@ -311,6 +317,12 @@ struct hydrodata_out
     
 #if defined(RT_EVOLVE_NGAMMA_IN_HYDRO)
     MyFloat Dt_E_gamma[N_RT_FREQ_BINS];
+#if defined(RT_INFRARED)
+    MyFloat Dt_E_gamma_T_weighted_IR;
+#endif
+#endif
+#if defined(RT_EVOLVE_FLUX)
+    MyFloat Dt_Flux[N_RT_FREQ_BINS][3];
 #endif
     
 #if defined(MAGNETIC)
@@ -360,6 +372,10 @@ static inline void particle2in_hydra(struct hydrodata_in *in, int i)
     /* since it is not used elsewhere, we can use the sign of the condition number as a bit 
         to conveniently indicate the status of the parent particle flag, for the constrained gradients */
     if(SphP[i].FlagForConstrainedGradients == 0) {in->ConditionNumber *= -1;}
+#endif
+#ifdef BH_WIND_SPAWN
+    /* as above, use sign of condition number as a bitflag to indicate if this is, or is not, a wind particle */
+    if(P[i].ID == All.AGNWindID) {in->ConditionNumber *= -1;}
 #endif
     in->DhsmlNgbFactor = PPP[i].DhsmlNgbFactor;
 #ifdef HYDRO_SPH
@@ -414,10 +430,16 @@ static inline void particle2in_hydra(struct hydrodata_in *in, int i)
         in->E_gamma[k] = SphP[i].E_gamma_Pred[k];
         in->Kappa_RT[k] = SphP[i].Kappa_RT[k];
         in->RT_DiffusionCoeff[k] = rt_diffusion_coefficient(i,k);
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(HYDRO_SPH)
+#if defined(RT_EVOLVE_FLUX) || defined(HYDRO_SPH)
         int k_dir; for(k_dir=0;k_dir<6;k_dir++) in->ET[k][k_dir] = SphP[i].ET[k][k_dir];
 #endif
+#ifdef RT_EVOLVE_FLUX
+        for(k_dir=0;k_dir<3;k_dir++) in->Flux[k][k_dir] = SphP[i].Flux_Pred[k][k_dir];
+#endif
     }
+#ifdef RT_INFRARED
+        in->Radiation_Temperature = SphP[i].Radiation_Temperature;
+#endif
 #endif
 
 #if defined(TURB_DIFF_METALS) || (defined(METALS) && defined(HYDRO_MESHLESS_FINITE_VOLUME))
@@ -505,6 +527,12 @@ static inline void out2particle_hydra(struct hydrodata_out *out, int i, int mode
     
 #if defined(RT_EVOLVE_NGAMMA_IN_HYDRO)
     for(k=0;k<N_RT_FREQ_BINS;k++) {SphP[i].Dt_E_gamma[k] += out->Dt_E_gamma[k];}
+#if defined(RT_INFRARED)
+    SphP[i].Dt_E_gamma_T_weighted_IR += out->Dt_E_gamma_T_weighted_IR;
+#endif
+#endif
+#if defined(RT_EVOLVE_FLUX)
+    for(k=0;k<N_RT_FREQ_BINS;k++) {int k_dir; for(k_dir=0;k_dir<3;k_dir++) {SphP[i].Dt_Flux[k][k_dir] += out->Dt_Flux[k][k_dir];}}
 #endif
 
     
@@ -662,6 +690,51 @@ void hydro_final_operations_and_cleanup(void)
             // = du/dlna -3*(gamma-1)*u ; then dlna/dt = H(z) =  All.cf_hubble_a //
             
             
+#ifdef RT_RAD_PRESSURE_FORCES
+#if defined(RT_EVOLVE_FLUX)
+            /* calculate the radiation pressure force */
+            double radacc[3]; radacc[0]=radacc[1]=radacc[2]=0; int k2;
+            // a = kappa*F/c = Gradients.E_gamma_ET[gradient of photon energy density] / rho[gas_density] //
+            double L_particle = Get_Particle_Size(i)*All.cf_atime; // particle effective size/slab thickness
+            double Sigma_particle = P[i].Mass / (M_PI*L_particle*L_particle); // effective surface density through particle
+            double abs_per_kappa_dt = RT_SPEEDOFLIGHT_REDUCTION * (C/All.UnitVelocity_in_cm_per_s) * (SphP[i].Density*All.cf_a3inv) * dt; // fractional absorption over timestep
+            for(k2=0;k2<N_RT_FREQ_BINS;k2++)
+            {
+                // want to average over volume (through-slab) and over time (over absorption): both give one 'slab_fac' below //
+                double slabfac = 1;// slab_averaging_function(SphP[i].Kappa_RT[k2]*Sigma_particle) * slab_averaging_function(SphP[i].Kappa_RT[k2]*abs_per_kappa_dt); // (actually dt average not appropriate if there is a source, dx average implicit -already- in averaging operation of Riemann problem //
+#ifdef RT_DISABLE_R15_GRADIENTFIX
+                // use actual flux -- appropriate for highly optically-thick, multiple scattering bands //
+                for(k=0;k<3;k++) {radacc[k] += slabfac * SphP[i].Kappa_RT[k2] * (SphP[i].Flux_Pred[k2][k] * SphP[i].Density/P[i].Mass) / (RT_SPEEDOFLIGHT_REDUCTION * C / All.UnitVelocity_in_cm_per_s);}
+#else
+                // use optically-thin flux: for optically thin cases this is better, but actually for thick cases, if optical depth is highly un-resolved, this is also better (see Appendices and discussion of Rosdahl et al. 2015)
+                double Fmag=0; for(k=0;k<3;k++) {Fmag+=SphP[i].Flux_Pred[k2][k]*SphP[i].Flux_Pred[k2][k];}
+#ifdef RT_INFRARED
+                if(k2==RT_FREQ_BIN_INFRARED)
+                    for(k=0;k<3;k++) {radacc[k] += slabfac * SphP[i].Kappa_RT[k2] * (SphP[i].Flux_Pred[k2][k] * SphP[i].Density/P[i].Mass) / (RT_SPEEDOFLIGHT_REDUCTION * C / All.UnitVelocity_in_cm_per_s);}
+                else
+#endif
+                if(Fmag > 0)
+                {
+                    Fmag = sqrt(Fmag);
+                    double Fthin = SphP[i].E_gamma[k2] * (RT_SPEEDOFLIGHT_REDUCTION * C / All.UnitVelocity_in_cm_per_s);
+                    double F_eff = DMAX(Fthin , Fmag);
+                    for(k=0;k<3;k++) {radacc[k] += (F_eff/Fmag) * slabfac * SphP[i].Kappa_RT[k2] * (SphP[i].Flux_Pred[k2][k] * SphP[i].Density/P[i].Mass) / (RT_SPEEDOFLIGHT_REDUCTION * C / All.UnitVelocity_in_cm_per_s);}
+                }
+#endif
+//#elif defined(RT_EVOLVE_EDDINGTON_TENSOR)
+                    /* // -- moved for OTVET+FLD to drift-kick operation to deal with limiters more accurately -- // */
+                    //radacc[k] += -slabfac * SphP[i].Lambda_FluxLim[k2] * SphP[i].Gradients.E_gamma_ET[k2][k] / SphP[i].Density; // no speed of light reduction multiplier here //
+            }
+            for(k=0;k<3;k++)
+            {
+#ifdef RT_RAD_PRESSURE_OUTPUT
+                SphP[i].RadAccel[k] = radacc[k];
+#else
+                SphP[i].HydroAccel[k] += radacc[k];
+#endif
+            } 
+#endif
+#endif
 
             
             
@@ -750,6 +823,12 @@ void hydro_force(void)
 #endif
 #if defined(RT_EVOLVE_NGAMMA_IN_HYDRO)
             for(k=0;k<N_RT_FREQ_BINS;k++) {SphP[i].Dt_E_gamma[k] = 0;}
+#if defined(RT_INFRARED)
+            SphP[i].Dt_E_gamma_T_weighted_IR = 0;
+#endif
+#endif
+#if defined(RT_EVOLVE_FLUX)
+            for(k=0;k<N_RT_FREQ_BINS;k++) {int k_dir; for(k_dir=0;k_dir<3;k_dir++) {SphP[i].Dt_Flux[k][k_dir] = 0;}}
 #endif
             
 #ifdef MAGNETIC

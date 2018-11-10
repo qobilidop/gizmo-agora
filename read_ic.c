@@ -157,7 +157,7 @@ void read_ic(char *fname)
     
     
 #if defined(BLACK_HOLES)
-#if defined(BH_SWALLOWGAS) || defined(BH_BONDI) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_GRAVACCRETION) || defined(BH_GRAVCAPTURE_GAS) || defined(BH_SEED_FROM_LOCALGAS)
+#if defined(BH_SWALLOWGAS) || defined(BH_BONDI) || defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK) || defined(BH_GRAVACCRETION) || defined(BH_GRAVCAPTURE_GAS) || defined(BH_SEED_FROM_LOCALGAS)
     if(RestartFlag == 0)
     {
         All.MassTable[5] = 0;
@@ -329,7 +329,7 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
             break;
             
         case IO_NE:		/* electron abundance */
-#if defined(COOLING) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(COOLING) || defined(RT_CHEM_PHOTOION)
             for(n = 0; n < pc; n++)
                 SphP[offset + n].Ne = *fp++;
 #endif
@@ -471,6 +471,14 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
 
             
         case IO_RADGAMMA:
+#ifdef RADTRANSFER
+            if(RestartFlag != 2)
+            {
+                for(n = 0; n < pc; n++)
+                    for(k = 0; k < N_RT_FREQ_BINS; k++)
+                        SphP[offset + n].E_gamma[k] = *fp++;
+            }
+#endif
             break;
             
         case IO_DMHSML:
@@ -522,6 +530,7 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
 
 
 
+        case IO_COSMICRAY_KAPPA:
         case IO_AGS_OMEGA:
         case IO_AGS_CORR:
         case IO_AGS_NGBS:

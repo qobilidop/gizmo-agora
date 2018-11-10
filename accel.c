@@ -116,7 +116,7 @@ void compute_hydro_densities_and_forces(void)
 
 void compute_additional_forces_for_all_particles(void)
 {
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(DM_SIDM) || defined(FLAG_NOT_IN_PUBLIC_CODE)
     AGSForce_calc();
 #endif
 #ifdef GRAIN_FLUID

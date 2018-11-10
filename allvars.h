@@ -180,7 +180,7 @@
 #include "eos/eos.h"
 
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(DM_SIDM)
 #ifndef ADAPTIVE_GRAVSOFT_FORALL
 #define ADAPTIVE_GRAVSOFT_FORALL 100000
 #endif
@@ -212,7 +212,7 @@
 
 #ifdef SINGLE_STAR_FORMATION
 #define GALSF // master switch needed to enable various frameworks
-#define GALSF_SFR_VIRIAL_SF_CRITERION 2 // only allow star formation in virialized sub-regions meeting Jeans threshold
+#define GALSF_SFR_VIRIAL_SF_CRITERION 3 // only allow star formation in virialized sub-regions meeting Jeans threshold
 #define METALS  // metals should be active for stellar return
 #define BLACK_HOLES // need to have black holes active since these are our sink particles
 #define GALSF_SFR_IMF_VARIATION // save extra information about sinks when they form
@@ -278,11 +278,57 @@
 /* force 'master' flags to be enabled for the appropriate methods, if we have enabled something using those methods */
 
 /* options for FIRE RT method */
+#if defined(RT_LEBRON)
+// use gravity tree for flux propagation
+#define RT_USE_GRAVTREE
+#endif
 
+#ifdef RT_FLUXLIMITEDDIFFUSION
+#define RT_OTVET /* for FLD, we use the OTVET architecture, but then just set the tensor to isotropic */
+#endif
 
 /* options for OTVET module */
+#if defined(RT_OTVET)
+// RADTRANSFER is ON, obviously
+#ifndef RADTRANSFER
+#define RADTRANSFER
+#endif
+// need to solve a diffusion equation
+#ifndef RT_DIFFUSION
+#define RT_DIFFUSION
+#endif
+// use gravity tree for Eddington tensor
+#define RT_USE_GRAVTREE
+// and be sure to track luminosity locations 
+#ifndef RT_SEPARATELY_TRACK_LUMPOS
+#define RT_SEPARATELY_TRACK_LUMPOS
+#endif
+// need source injection enabled to define emissivity
+#define RT_SOURCE_INJECTION
+#if !defined(RT_DIFFUSION_IMPLICIT) && !defined(RT_DIFFUSION_EXPLICIT)
+#define RT_DIFFUSION_EXPLICIT // default to explicit (more accurate) solver //
+#endif
+#endif
 
 /* options for M1 module */
+#if defined(RT_M1)
+// RADTRANSFER is ON, obviously
+#ifndef RADTRANSFER
+#define RADTRANSFER
+#endif
+// need to solve a diffusion equation
+#ifndef RT_DIFFUSION
+#define RT_DIFFUSION
+#endif
+// need source injection enabled to define emissivity
+#define RT_SOURCE_INJECTION
+// and need to evolve fluxes
+#define RT_EVOLVE_FLUX
+// at the moment, this only works for explicit solutions, so set this on
+#ifndef RT_DIFFUSION_EXPLICIT
+#define RT_DIFFUSION_EXPLICIT
+#endif
+#endif
 
 
 /* options for direct/exact Jiang et al. method for direct evolution on an intensity grid */
@@ -294,7 +340,7 @@
 #define RT_DIFFUSION_CG
 #endif
 /* check if flux-limiting is disabled: it should be on by default with diffusion-based methods */
-#if (defined(RT_DIFFUSION)) && !defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if (defined(RT_DIFFUSION)) && !defined(RT_DISABLE_FLUXLIMITER)
 #define RT_FLUXLIMITER
 #endif
 /* check if we are -explicitly- evolving the radiation field, in which case we need to carry time-derivatives of the field */
@@ -303,26 +349,58 @@
 #endif
 
 /* enable radiation pressure forces unless they have been explicitly disabled */
+#if defined(RADTRANSFER) && !defined(RT_DISABLE_RAD_PRESSURE)
+#define RT_RAD_PRESSURE_FORCES
+#endif
 
-#if ((defined(RT_FLUXLIMITER) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(RT_DIFFUSION_EXPLICIT)) && !defined(FLAG_NOT_IN_PUBLIC_CODE)) && !defined(RT_EVOLVE_EDDINGTON_TENSOR)
+#if ((defined(RT_FLUXLIMITER) || defined(RT_RAD_PRESSURE_FORCES) || defined(RT_DIFFUSION_EXPLICIT)) && !defined(RT_EVOLVE_FLUX)) && !defined(RT_EVOLVE_EDDINGTON_TENSOR)
 #define RT_EVOLVE_EDDINGTON_TENSOR
 #endif
 
 /* enable appropriate chemistry flags if we are using the photoionization modules */
+#if defined(RT_CHEM_PHOTOION)
+#if (RT_CHEM_PHOTOION > 1)
+/* enables multi-frequency radiation transport for ionizing photons. Integration variable is the ionising intensity J_nu */
+#define RT_CHEM_PHOTOION_HE
+#define RT_PHOTOION_MULTIFREQUENCY // if using He-ionization, default to multi-frequency RT [otherwise doesn't make sense] //
+#endif
+#endif
 
 
+#if defined(RT_XRAY)
+#if (RT_XRAY == 1)
+#define RT_SOFT_XRAY
+#endif
+#if (RT_XRAY == 2)
+#define RT_HARD_XRAY
+#endif
+#if (RT_XRAY == 3)
+#define RT_SOFT_XRAY
+#define RT_HARD_XRAY
+#endif
+#endif
 
 
 /* default to speed-of-light equal to actual speed-of-light, and stars as photo-ionizing sources */
+#ifndef RT_SPEEDOFLIGHT_REDUCTION
 #define RT_SPEEDOFLIGHT_REDUCTION 1.0
+#endif
+#ifndef RT_SOURCES
 #define RT_SOURCES 16
+#endif
 
 /* cooling must be enabled for RT cooling to function */
+#if defined(RT_COOLING_PHOTOHEATING_OLDFORMAT) && !defined(COOLING)
+#define COOLING
+#endif
+
+#if !defined(RT_USE_GRAVTREE) && defined(RT_SELFGRAVITY_OFF) && !defined(SELFGRAVITY_OFF)
+#define SELFGRAVITY_OFF // safely define SELFGRAVITY_OFF in this case, otherwise we act like there is gravity except in the final setting of accelerations
+#endif
 
 
 
-
-#if defined(GALSF) || defined(BLACK_HOLES) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(GALSF) || defined(BLACK_HOLES) || defined(RADTRANSFER)
 #define DO_DENSITY_AROUND_STAR_PARTICLES
 #if !defined(ALLOW_IMBALANCED_GASPARTICLELOAD)
 #define ALLOW_IMBALANCED_GASPARTICLELOAD
@@ -361,6 +439,9 @@
 #if defined(BLACK_HOLES) && (defined(BH_REPOSITION_ON_POTMIN) || defined(BH_SEED_FROM_FOF))
 #ifndef EVALPOTENTIAL
 #define EVALPOTENTIAL
+#endif
+#if !defined(BH_DYNFRICTION) && (BH_REPOSITION_ON_POTMIN == 2)
+#define BH_DYNFRICTION 1 // use for local damping of anomalous velocities wrt background medium //
 #endif
 #endif
 
@@ -431,7 +512,7 @@
 #define DOGRAD_SOUNDSPEED 1
 #endif
 
-#if defined(CONDUCTION) || defined(VISCOSITY) || defined(TURB_DIFFUSION) || defined(MHD_NON_IDEAL) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(FLAG_NOT_IN_PUBLIC_CODE_DISABLE_DIFFUSION)) || (defined(RT_DIFFUSION_EXPLICIT) && !defined(FLAG_NOT_IN_PUBLIC_CODE))
+#if defined(CONDUCTION) || defined(VISCOSITY) || defined(TURB_DIFFUSION) || defined(MHD_NON_IDEAL) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(FLAG_NOT_IN_PUBLIC_CODE_DISABLE_DIFFUSION)) || (defined(RT_DIFFUSION_EXPLICIT) && !defined(RT_EVOLVE_FLUX))
 #ifndef DISABLE_SUPER_TIMESTEPPING
 //#define SUPER_TIMESTEP_DIFFUSION
 #endif
@@ -503,6 +584,77 @@ typedef  int integertime;
 #endif
 
 
+#if defined(RADTRANSFER) || defined(RT_USE_GRAVTREE)
+#define RT_BIN0 (-1)
+
+#ifndef RT_CHEM_PHOTOION
+#define RT_FREQ_BIN_H0 (RT_BIN0+0)
+#else
+#define RT_FREQ_BIN_H0 (RT_BIN0+1)
+#endif
+
+#ifndef RT_PHOTOION_MULTIFREQUENCY
+#define RT_FREQ_BIN_He0 (RT_FREQ_BIN_H0+0)
+#define RT_FREQ_BIN_He1 (RT_FREQ_BIN_He0+0)
+#define RT_FREQ_BIN_He2 (RT_FREQ_BIN_He1+0)
+#else
+#define RT_FREQ_BIN_He0 (RT_FREQ_BIN_H0+1)
+#define RT_FREQ_BIN_He1 (RT_FREQ_BIN_He0+1)
+#define RT_FREQ_BIN_He2 (RT_FREQ_BIN_He1+1)
+#endif
+
+#define RT_FREQ_BIN_FIRE_UV (RT_FREQ_BIN_He2+0)
+#define RT_FREQ_BIN_FIRE_OPT (RT_FREQ_BIN_FIRE_UV+0)
+#define RT_FREQ_BIN_FIRE_IR (RT_FREQ_BIN_FIRE_OPT+0)
+
+#ifndef RT_SOFT_XRAY
+#define RT_FREQ_BIN_SOFT_XRAY (RT_FREQ_BIN_FIRE_IR+0)
+#else
+#define RT_FREQ_BIN_SOFT_XRAY (RT_FREQ_BIN_FIRE_IR+1)
+#endif
+
+#ifndef RT_HARD_XRAY
+#define RT_FREQ_BIN_HARD_XRAY (RT_FREQ_BIN_SOFT_XRAY+0)
+#else
+#define RT_FREQ_BIN_HARD_XRAY (RT_FREQ_BIN_SOFT_XRAY+1)
+#endif
+
+#ifndef RT_PHOTOELECTRIC
+#define RT_FREQ_BIN_PHOTOELECTRIC (RT_FREQ_BIN_HARD_XRAY+0)
+#else
+#define RT_FREQ_BIN_PHOTOELECTRIC (RT_FREQ_BIN_HARD_XRAY+1)
+#endif
+
+#ifndef RT_LYMAN_WERNER
+#define RT_FREQ_BIN_LYMAN_WERNER (RT_FREQ_BIN_PHOTOELECTRIC+0)
+#else
+#define RT_FREQ_BIN_LYMAN_WERNER (RT_FREQ_BIN_PHOTOELECTRIC+1)
+#endif
+
+#ifndef RT_NUV
+#define RT_FREQ_BIN_NUV (RT_FREQ_BIN_LYMAN_WERNER+0)
+#else
+#define RT_FREQ_BIN_NUV (RT_FREQ_BIN_LYMAN_WERNER+1)
+#endif
+
+#ifndef RT_OPTICAL_NIR
+#define RT_FREQ_BIN_OPTICAL_NIR (RT_FREQ_BIN_NUV+0)
+#else
+#define RT_FREQ_BIN_OPTICAL_NIR (RT_FREQ_BIN_NUV+1)
+#endif
+
+
+/* be sure to add all new wavebands to these lists, or else we will run into problems */
+/* ALSO, the IR bin here should be the last bin: add additional bins ABOVE this line */
+#ifndef RT_INFRARED
+#define RT_FREQ_BIN_INFRARED (RT_FREQ_BIN_OPTICAL_NIR+0)
+#else
+#define RT_FREQ_BIN_INFRARED (RT_FREQ_BIN_OPTICAL_NIR+1)
+#endif
+
+#define N_RT_FREQ_BINS (RT_FREQ_BIN_INFRARED+1)
+
+#endif // #if defined(RADTRANSFER) || defined(RT_USE_GRAVTREE)
 
 
 #ifndef  MULTIPLEDOMAINS
@@ -583,7 +735,11 @@ typedef unsigned long long peanokey;
 #define  GAMMA_MINUS1  (GAMMA-1)
 #define  GAMMA_MINUS1_INV  (1./(GAMMA-1))
 
+#if !defined(RT_HYDROGEN_GAS_ONLY) || defined(RT_CHEM_PHOTOION_HE)
 #define  HYDROGEN_MASSFRAC 0.76 /*!< mass fraction of hydrogen, relevant only for radiative cooling */
+#else
+#define  HYDROGEN_MASSFRAC 1.0  /*!< mass fraction of hydrogen, relevant only for radiative cooling */
+#endif
 
 #define  MAX_REAL_NUMBER  1e37
 #define  MIN_REAL_NUMBER  1e-37
@@ -948,7 +1104,7 @@ extern double TimeBin_BH_mass[TIMEBINS];
 extern double TimeBin_BH_dynamicalmass[TIMEBINS];
 extern double TimeBin_BH_Mdot[TIMEBINS];
 extern double TimeBin_BH_Medd[TIMEBINS];
-#if defined(BH_GRAVCAPTURE_GAS) || defined(BH_GRAVACCRETION) || defined(BH_GRAVCAPTURE_NONGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_DYNFRICTION)
+#if defined(BH_GRAVCAPTURE_GAS) || defined(BH_GRAVACCRETION) || defined(BH_GRAVCAPTURE_NONGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS) || defined(BH_DYNFRICTION)
 #define BH_NEIGHBOR_BITFLAG 63 /* allow all particle types in the BH search: 63=2^0+2^1+2^2+2^3+2^4+2^5 */
 #else
 #define BH_NEIGHBOR_BITFLAG 33 /* only search for particles of types 0 and 5 (gas and black holes) around a primary BH particle */
@@ -1044,6 +1200,17 @@ extern int *DomainList, DomainNumChanged;
 extern peanokey *Key, *KeySorted;
 
 
+#ifdef RT_CHEM_PHOTOION
+double rt_nu_eff_eV[N_RT_FREQ_BINS];
+double precalc_stellar_luminosity_fraction[N_RT_FREQ_BINS];
+double nu[N_RT_FREQ_BINS];
+double rt_sigma_HI[N_RT_FREQ_BINS];
+double rt_sigma_HeI[N_RT_FREQ_BINS];
+double rt_sigma_HeII[N_RT_FREQ_BINS];
+double G_HI[N_RT_FREQ_BINS];
+double G_HeI[N_RT_FREQ_BINS];
+double G_HeII[N_RT_FREQ_BINS];
+#endif
 
 extern struct topnode_data
 {
@@ -1079,6 +1246,9 @@ extern FILE
  *FdEnergy,     /*!< file handle for energy.txt log-file. */
  *FdTimings,    /*!< file handle for timings.txt log-file. */
  *FdBalance,    /*!< file handle for balance.txt log-file. */
+#ifdef RT_CHEM_PHOTOION
+ *FdRad,		/*!< file handle for radtransfer.txt log-file. */
+#endif
 #ifdef TURB_DRIVING
  *FdTurb,       /*!< file handle for turb.txt log-file */
 #endif
@@ -1104,6 +1274,9 @@ extern FILE *FdBlackHoles;	/*!< file handle for blackholes.txt log-file. */
 extern FILE *FdBlackHolesDetails;
 #ifdef BH_OUTPUT_MOREINFO
 extern FILE *FdBhMergerDetails;
+#ifdef BH_WIND_KICK
+extern FILE *FdBhWindDetails;
+#endif
 #endif
 #endif
 #endif
@@ -1143,6 +1316,9 @@ extern struct global_data_all_processes
 #endif
 
     
+#ifdef DM_SIDM
+    MyDouble InteractionCrossSection;  /*!< self-interaction cross-section in [cm^2/g]*/
+#endif
     
   int MaxPart;			/*!< This gives the maxmimum number of particles that can be stored on one processor. */
   int MaxPartSph;		/*!< This gives the maxmimum number of SPH particles that can be stored on one processor. */
@@ -1390,14 +1566,33 @@ extern struct global_data_all_processes
 
 
 
+#ifdef RADTRANSFER
+  integertime Radiation_Ti_begstep;
+  integertime Radiation_Ti_endstep;
+#endif
     
+#ifdef RT_EVOLVE_INTENSITIES
+    double RT_Intensity_Direction[N_RT_INTENSITY_BINS][3];
+#endif
 
+#if defined(RT_CHEM_PHOTOION) && !(defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF))
+    double IonizingLuminosityPerSolarMass_cgs;
+    double star_Teff;
+#endif
     
     
+#ifdef RT_LEBRON
+    double PhotonMomentum_Coupled_Fraction;
+#endif
     
 
 #ifdef GRAIN_FLUID
 #ifdef GRAIN_RDI_TESTPROBLEM
+#if(NUMDIMS==3)
+#define GRAV_DIRECTION_RDI 2
+#else
+#define GRAV_DIRECTION_RDI 1
+#endif
     double Grain_Charge_Parameter;
     double Dust_to_Gas_Mass_Ratio;
     double Vertical_Gravity_Strength;
@@ -1456,11 +1651,14 @@ extern struct global_data_all_processes
   double InitStellarAgeinGyr;
 #endif
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK) || defined(BH_WIND_SPAWN)
     double BAL_f_accretion;
     double BAL_v_outflow;
 #endif
     
+#if defined(BH_COSMIC_RAYS)
+    double BH_CosmicRay_Injection_Efficiency;
+#endif
     
 #ifdef METALS
     double SolarAbundances[NUM_METAL_SPECIES];
@@ -1533,10 +1731,20 @@ extern struct global_data_all_processes
   double BlackHoleAccretionFactor;	/*!< Fraction of BH bondi accretion rate */
   double BlackHoleFeedbackFactor;	/*!< Fraction of the black luminosity feed into thermal feedback */
   double SeedBlackHoleMass;         /*!< Seed black hole mass */
+#if defined(BH_SEED_FROM_FOF) || defined(BH_SEED_FROM_LOCALGAS)
   double SeedBlackHoleMassSigma;    /*!< Standard deviation of init black hole masses */
   double SeedBlackHoleMinRedshift;  /*!< Minimum redshift where BH seeds are allowed */
+#ifdef BH_SEED_FROM_LOCALGAS
+  double SeedBlackHolePerUnitMass;  /*!< Defines probability per unit mass of seed BH forming */
+#endif
+#endif
 #ifdef BH_ALPHADISK_ACCRETION
   double SeedAlphaDiskMass;         /*!< Seed alpha disk mass */
+#endif
+#ifdef BH_WIND_SPAWN
+  double BAL_wind_particle_mass;        /*!< target mass for feedback particles to be spawned */
+  double BAL_internal_temperature;
+  MyIDType AGNWindID;
 #endif
 #ifdef BH_SEED_FROM_FOF
   double MinFoFMassForNewSeed;      /*!< Halo mass required before new seed is put in */
@@ -1668,6 +1876,9 @@ extern ALIGN(32) struct particle_data
 #if defined(BLACK_HOLES)
     MyIDType SwallowID;
     int IndexMapToTempStruc;   /*!< allows for mapping to BlackholeTempInfo struc */
+#ifdef BH_WIND_SPAWN
+    MyFloat unspawned_wind_mass;    /*!< tabulates the wind mass which has not yet been spawned */
+#endif
 #ifdef BH_COUNTPROGS
     int BH_CountProgs;
 #endif
@@ -1677,6 +1888,9 @@ extern ALIGN(32) struct particle_data
 #endif
     MyFloat BH_Mdot;
     int BH_TimeBinGasNeighbor;
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    MyFloat BH_disk_hr;
+#endif
 #ifdef BH_REPOSITION_ON_POTMIN
     MyFloat BH_MinPotPos[3];
     MyFloat BH_MinPot;
@@ -1689,6 +1903,10 @@ extern ALIGN(32) struct particle_data
 #endif
     
     
+#ifdef DM_SIDM
+    int dt_step_sidm; /*!< timestep used if self-interaction probabilities greater than 0.2 are found */
+    long unsigned int NInteractions; /*!< Total number of interactions */
+#endif
 
     
     float GravCost[GRAVCOSTLEVELS];   /*!< weight factor used for balancing the work-load */
@@ -1908,6 +2126,47 @@ extern struct sph_particle_data
 #endif
 
     
+#if defined(RADTRANSFER)
+    MyFloat ET[N_RT_FREQ_BINS][6];      /*!< eddington tensor - symmetric -> only 6 elements needed: this is dimensionless by our definition */
+    MyFloat Je[N_RT_FREQ_BINS];         /*!< emissivity (includes sources like stars, as well as gas): units=E_gamma/time  */
+    MyFloat E_gamma[N_RT_FREQ_BINS];    /*!< photon energy (integral of dE_gamma/dvol*dVol) associated with particle [for simple frequency bins, equivalent to photon number] */
+    MyFloat Kappa_RT[N_RT_FREQ_BINS];   /*!< opacity [physical units ~ length^2 / mass]  */
+    MyFloat Lambda_FluxLim[N_RT_FREQ_BINS]; /*!< dimensionless flux-limiter (0<lambda<1) */
+#ifdef RT_EVOLVE_INTENSITIES
+    MyFloat Intensity[N_RT_FREQ_BINS][N_RT_INTENSITY_BINS]; /*!< intensity values along different directions, for each frequency */
+    MyFloat Intensity_Pred[N_RT_FREQ_BINS][N_RT_INTENSITY_BINS]; /*!< predicted [drifted] values of intensities */
+    MyFloat Dt_Intensity[N_RT_FREQ_BINS][N_RT_INTENSITY_BINS]; /*!< time derivative of intensities */
+#endif
+#ifdef RT_EVOLVE_FLUX
+    MyFloat Flux[N_RT_FREQ_BINS][3];    /*!< photon energy flux density (energy/time/area), for methods which track this explicitly (e.g. M1) */
+    MyFloat Flux_Pred[N_RT_FREQ_BINS][3];/*!< predicted photon energy flux density for drift operations (needed for adaptive timestepping) */
+    MyFloat Dt_Flux[N_RT_FREQ_BINS][3]; /*!< time derivative of photon energy flux density */
+#endif
+#ifdef RT_EVOLVE_NGAMMA
+    MyFloat E_gamma_Pred[N_RT_FREQ_BINS]; /*!< predicted E_gamma for drift operations (needed for adaptive timestepping) */
+    MyFloat Dt_E_gamma[N_RT_FREQ_BINS]; /*!< time derivative of photon number in particle (used only with explicit solvers) */
+#endif
+#ifdef RT_RAD_PRESSURE_OUTPUT
+    MyFloat RadAccel[3];
+#endif
+#ifdef RT_INFRARED
+    MyFloat Radiation_Temperature; /* IR radiation field temperature (evolved variable ^4 power, for convenience) */
+    MyFloat Dt_E_gamma_T_weighted_IR; /* IR radiation temperature-weighted time derivative of photon energy (evolved variable ^4 power, for convenience) */
+    MyFloat Dust_Temperature; /* Dust temperature (evolved variable ^4 power, for convenience) */
+#endif
+#ifdef RT_CHEM_PHOTOION
+    MyFloat HI;                  /* HI fraction */
+    MyFloat HII;                 /* HII fraction */
+#ifndef COOLING
+    MyFloat Ne;               /* electron fraction */
+#endif
+#ifdef RT_CHEM_PHOTOION_HE
+    MyFloat HeI;                 /* HeI fraction */
+    MyFloat HeII;                 /* HeII fraction */
+    MyFloat HeIII;                 /* HeIII fraction */
+#endif
+#endif
+#endif
     
     
     
@@ -2012,11 +2271,11 @@ extern struct data_nodelist
 extern struct gravdata_in
 {
     MyFloat Pos[3];
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     MyFloat Mass;
 #endif
     int Type;
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     MyFloat Soft;
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
     MyFloat AGS_zeta;
@@ -2032,6 +2291,9 @@ extern struct gravdata_in
 extern struct gravdata_out
 {
     MyLongDouble Acc[3];
+#ifdef RT_OTVET
+    MyLongDouble ET[N_RT_FREQ_BINS][6];
+#endif
 #ifdef EVALPOTENTIAL
     MyLongDouble Potential;
 #endif
@@ -2086,12 +2348,16 @@ extern struct blackhole_temp_particle_data       // blackholedata_topass
     MyLongDouble MgasBulge_in_Kernel;
     MyLongDouble MstarBulge_in_Kernel;
 #endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    MyLongDouble GradRho_in_Kernel[3];
+    MyFloat BH_angle_weighted_kernel_sum;
+#endif
 #ifdef BH_DYNFRICTION
     MyFloat DF_mean_vel[3];
     MyFloat DF_rms_vel;
     MyFloat DF_mmax_particles;
 #endif
-#if defined(BH_BONDI) || defined(BH_DRAG)
+#if defined(BH_BONDI) || defined(BH_DRAG) || (BH_GRAVACCRETION == 4)
     MyFloat BH_SurroundingGasVel[3];
 #endif
     
@@ -2205,6 +2471,7 @@ enum iofields
   IO_DBDT,
   IO_IMF,
   IO_COSMICRAY_ENERGY,
+  IO_COSMICRAY_KAPPA,
   IO_COSMICRAY_ALFVEN,
   IO_DIVB,
   IO_ABVC,
@@ -2372,6 +2639,9 @@ extern ALIGN(32) struct NODE
   double GravCost;
   integertime Ti_current;
 
+#ifdef RT_USE_GRAVTREE
+  MyFloat stellar_lum[N_RT_FREQ_BINS]; /*!< luminosity in the node*/
+#endif
 
 
 #ifdef BH_CALC_DISTANCES
@@ -2379,6 +2649,9 @@ extern ALIGN(32) struct NODE
     MyFloat bh_pos[3];    /*!< holds the mass-weighted position of the the actual black holes within the node */
 #endif
     
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    MyFloat rt_source_lum_s[3];     /*!< center of luminosity for sources in the node*/
+#endif
     
   MyFloat maxsoft;		/*!< hold the maximum gravitational softening of particle in the node */
   
@@ -2395,6 +2668,10 @@ extern ALIGN(32) struct NODE
 extern struct extNODE
 {
   MyLongDouble dp[3];
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    MyLongDouble rt_source_lum_dp[3];
+    MyFloat rt_source_lum_vs[3];
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
   MyLongDouble dp_dm[3];
   MyFloat vs_dm[3];
@@ -2452,6 +2729,10 @@ extern int FB_Seed;
 
 
 
+#ifdef DM_SIDM
+#define GEOFACTOR_TABLE_LENGTH 1000    /*!< length of the table used for the geometric factor spline */
+extern MyDouble GeoFactorTable[GEOFACTOR_TABLE_LENGTH];
+#endif
 
 #endif  /* ALLVARS_H  - please do not put anything below this line */
 

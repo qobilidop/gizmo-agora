@@ -83,7 +83,7 @@ void blackhole_swallow_and_kick_loop(void)
             {
                 BlackholeDataIn[j].Pos[k] = P[place].Pos[k];
                 BlackholeDataIn[j].Vel[k] = P[place].Vel[k];
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK)
                 BlackholeDataIn[j].Jgas_in_Kernel[k] = BlackholeTempInfo[P[place].IndexMapToTempStruc].Jgas_in_Kernel[k];
 #endif
             }
@@ -93,6 +93,10 @@ void blackhole_swallow_and_kick_loop(void)
             BlackholeDataIn[j].BH_Mass = BPP(place).BH_Mass;
 #ifdef BH_ALPHADISK_ACCRETION
             BlackholeDataIn[j].BH_Mass_AlphaDisk = BPP(place).BH_Mass_AlphaDisk;
+#endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+            BlackholeDataIn[j].BH_disk_hr = P[place].BH_disk_hr;
+            BlackholeDataIn[j].BH_angle_weighted_kernel_sum = BlackholeTempInfo[P[place].IndexMapToTempStruc].BH_angle_weighted_kernel_sum;
 #endif
             BlackholeDataIn[j].Mdot = BPP(place).BH_Mdot;
 #ifndef WAKEUP
@@ -210,12 +214,30 @@ int blackhole_swallow_and_kick_evaluate(int target, int mode, int *nexport, int 
     MyIDType id;
     MyLongDouble accreted_mass, accreted_BH_mass, accreted_momentum[3];
     MyFloat *pos, h_i, bh_mass;
+#if defined(BH_WIND_CONTINUOUS) && !defined(BH_WIND_KICK)
+    MyFloat *velocity, hinv, hinv3;
+#endif
     MyFloat f_accreted=0;
+#ifdef BH_WIND_KICK
+    MyFloat v_kick=0;
+    MyFloat mass, bh_mass_withdisk;
+#ifdef BH_ALPHADISK_ACCRETION
+    MyFloat bh_mass_alphadisk;     // DAA: we need bh_mass_alphadisk for BH_WIND_KICK winds below
+#endif
+#endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    MyFloat mdot,dt;
+#endif
     
     MyFloat dir[3], norm, mom;
     mom=0; norm=0; dir[0]=0;
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK)
     MyFloat *Jgas_in_Kernel;
+#endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    double BH_angle_weighted_kernel_sum, mom_wt;
+    MyFloat theta,BH_disk_hr,kernel_zero,dwk;
+    kernel_main(0.0,1.0,1.0,&kernel_zero,&dwk,-1);
 #endif
 #ifdef GALSF
     double accreted_age = 1;
@@ -229,25 +251,69 @@ int blackhole_swallow_and_kick_evaluate(int target, int mode, int *nexport, int 
     if(mode == 0)
     {
         pos = P[target].Pos;
+#if defined(BH_WIND_CONTINUOUS) && !defined(BH_WIND_KICK)
+        velocity = P[target].Vel;
+#endif
         h_i = PPP[target].Hsml;
         id = P[target].ID;
+#ifdef BH_WIND_KICK
+        mass = P[target].Mass;    
+#ifdef BH_ALPHADISK_ACCRETION
+        bh_mass_alphadisk = BPP(target).BH_Mass_AlphaDisk;
+#endif
+#endif
         bh_mass = BPP(target).BH_Mass;
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+        mdot = BPP(target).BH_Mdot;
+#ifndef WAKEUP
+        dt = (P[target].TimeBin ? (1 << P[target].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a;
+#else
+        dt = P[target].dt_step * All.Timebase_interval / All.cf_hubble_a;
+#endif
+#endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK)
         Jgas_in_Kernel = BlackholeTempInfo[P[target].IndexMapToTempStruc].Jgas_in_Kernel;
+#endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+        BH_disk_hr = P[target].BH_disk_hr;
+        BH_angle_weighted_kernel_sum = BlackholeTempInfo[P[target].IndexMapToTempStruc].BH_angle_weighted_kernel_sum;
 #endif
         mod_index = P[target].IndexMapToTempStruc;  /* the index of the BlackholeTempInfo should we modify*/
     }
     else
     {
         pos = BlackholeDataGet[target].Pos;
+#if defined(BH_WIND_CONTINUOUS) && !defined(BH_WIND_KICK)
+        velocity = BlackholeDataGet[target].Vel;
+#endif
         h_i = BlackholeDataGet[target].Hsml;
         id = BlackholeDataGet[target].ID;
+#ifdef BH_WIND_KICK
+        mass = BlackholeDataGet[target].Mass;
+#ifdef BH_ALPHADISK_ACCRETION
+        bh_mass_alphadisk = BlackholeDataGet[target].BH_Mass_AlphaDisk;      
+#endif
+#endif
         bh_mass = BlackholeDataGet[target].BH_Mass;
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+        mdot = BlackholeDataGet[target].Mdot;
+        dt = BlackholeDataGet[target].Dt;
+#endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK)
         Jgas_in_Kernel = BlackholeDataGet[target].Jgas_in_Kernel;
+#endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+        BH_disk_hr = BlackholeDataGet[target].BH_disk_hr;
+        BH_angle_weighted_kernel_sum = BlackholeDataGet[target].BH_angle_weighted_kernel_sum;
 #endif
     }
 
+#ifdef BH_WIND_KICK
+    bh_mass_withdisk = bh_mass;
+#ifdef BH_ALPHADISK_ACCRETION
+    bh_mass_withdisk += bh_mass_alphadisk;
+#endif
+#endif
     
     accreted_mass = 0;
     accreted_BH_mass = 0;
@@ -258,7 +324,14 @@ int blackhole_swallow_and_kick_evaluate(int target, int mode, int *nexport, int 
 #ifdef BH_COUNTPROGS
     int accreted_BH_progs = 0;
 #endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    mom = bh_lum_bol(mdot, bh_mass, -1) * dt / (C / All.UnitVelocity_in_cm_per_s);
+    mom_wt = 0;
+#endif
     
+#if defined(BH_WIND_CONTINUOUS) && !defined(BH_WIND_KICK)
+    hinv=h_i; hinv3=hinv*hinv*hinv;
+#endif
     
     if(mode == 0)
     {
@@ -380,7 +453,15 @@ int blackhole_swallow_and_kick_evaluate(int target, int mode, int *nexport, int 
                      the only difference with BH_ALPHADISK_ACCRETION should be that the mass goes first to the alphadisk */
                     if(P[j].Type == 0)                    
                     {
+#ifdef BH_WIND_KICK
+                        f_accreted = All.BAL_f_accretion;
+#ifndef BH_GRAVCAPTURE_GAS
+                        if((All.BlackHoleFeedbackFactor > 0) && (All.BlackHoleFeedbackFactor != 1.)) {f_accreted /= All.BlackHoleFeedbackFactor;} else {if(All.BAL_v_outflow > 0) f_accreted = 1./(1. + fabs(1.*BH_WIND_KICK)*All.BlackHoleRadiativeEfficiency*(C/All.UnitVelocity_in_cm_per_s)/All.BAL_v_outflow);}
+                        if((bh_mass_withdisk - mass) <= 0) {f_accreted=0;} // DAA: no need to accrete gas particle to enforce mass conservation (we will simply kick),  note that here the particle mass P.Mass is larger than the physical BH mass P.BH_Mass
+#endif // #ifdef BH_GRAVCAPTURE_GAS
+#else // #ifdef BH_WIND_KICK
                         f_accreted = 1;                           // DAA: no "kick winds" so we need to accrete gas particle in full
+#endif
 
                         accreted_mass += FLT(f_accreted*P[j].Mass);
                         
@@ -402,9 +483,52 @@ int blackhole_swallow_and_kick_evaluate(int target, int mode, int *nexport, int 
 
 
                         /* BAL kicking operations 
-                         NOTE: we have two separate BAL wind models, particle kicking and smooth wind model.
-                         This is where we do the particle kicking BAL model
+                         NOTE: we have two separate BAL wind models, particle kicking and smooth wind model. This is where we do the particle kicking BAL model
                          DAA: This should also work when there is alpha-disk. */
+#ifdef BH_WIND_KICK 
+                        v_kick = All.BAL_v_outflow;
+                        if( !(All.ComovingIntegrationOn) && (All.Time < 0.001)) v_kick *= All.Time/0.001;
+                        dir[0]=dir[1]=dir[2]=0;
+                        for(k = 0; k < 3; k++) dir[k]=P[j].Pos[k]-pos[k];          // DAA: default direction is radially outwards
+#if defined(BH_COSMIC_RAYS)
+                        /* inject cosmic rays alongside wind injection */
+                        double dEcr = All.BH_CosmicRay_Injection_Efficiency * P[j].Mass * (All.BAL_f_accretion/(1.-All.BAL_f_accretion)) * (C / All.UnitVelocity_in_cm_per_s)*(C / All.UnitVelocity_in_cm_per_s);
+                        SphP[j].CosmicRayEnergy+=dEcr; SphP[j].CosmicRayEnergyPred+=dEcr;
+#ifdef COSMIC_RAYS_M1
+                        dEcr*=COSMIC_RAYS_M1; for(k=0;k<3;k++) {SphP[j].CosmicRayFlux[k]+=dEcr*dir[k]; SphP[j].CosmicRayFluxPred[k]+=dEcr*dir[k];}
+#endif
+#endif
+#if (BH_WIND_KICK < 0)
+                        /* DAA: along polar axis defined by angular momentum within Kernel (we could add finite opening angle) work out the geometry w/r to the plane of the disk */
+                        if((dir[0]*Jgas_in_Kernel[0] + dir[1]*Jgas_in_Kernel[1] + dir[2]*Jgas_in_Kernel[2]) > 0){ 
+                            for(k = 0; k < 3; k++) dir[k] = Jgas_in_Kernel[k];
+                        }else{
+                            for(k = 0; k < 3; k++) dir[k] = -Jgas_in_Kernel[k];
+                        }
+#endif
+                        for(k = 0, norm = 0; k < 3; k++) norm += dir[k]*dir[k];
+                        if(norm<=0) {dir[0]=0;dir[1]=0;dir[2]=1;norm=1;} else {norm=sqrt(norm);}
+                        for(k = 0; k < 3; k++)
+                        {
+                            P[j].Vel[k] += v_kick*All.cf_atime*dir[k]/norm;
+                            SphP[j].VelPred[k] += v_kick*All.cf_atime*dir[k]/norm;
+                        }
+#ifdef GALSF_SUBGRID_WINDS
+                        // DAA: if sub-grid galactic winds are decoupled from the hydro, we decouple the BH kick winds as well
+                        SphP[j].DelayTime = All.WindFreeTravelMaxTimeFactor / All.cf_hubble_a;
+#endif  
+
+#ifndef IO_REDUCED_MODE
+                        printf("BAL kick: P[j].ID %llu ID %llu Type(j) %d f_acc %g M(j) %g V(j).xyz %g/%g/%g P(j).xyz %g/%g/%g p(i).xyz %g/%g/%g v_out %g \n",
+                                   (unsigned long long) P[j].ID, (unsigned long long) P[j].SwallowID,P[j].Type, All.BAL_f_accretion,P[j].Mass,
+                                   P[j].Vel[0],P[j].Vel[1],P[j].Vel[2],P[j].Pos[0],P[j].Pos[1],P[j].Pos[2],pos[0],pos[1],pos[2],v_kick);
+#endif  // DAA-IO: BH_OUTPUT_MOREINFO overrides IO_REDUCED_MODE
+#ifdef BH_OUTPUT_MOREINFO
+                        fprintf(FdBhWindDetails,"%g  %u %g  %2.7f %2.7f %2.7f  %2.7f %2.7f %2.7f  %g %g %g  %u  %2.7f %2.7f %2.7f\n",
+                              All.Time, P[j].ID, P[j].Mass,  P[j].Pos[0],P[j].Pos[1],P[j].Pos[2],  P[j].Vel[0],P[j].Vel[1],P[j].Vel[2],
+                              dir[0]/norm,dir[1]/norm,dir[2]/norm, id, pos[0],pos[1],pos[2]);
+#endif
+#endif   // #ifdef BH_WIND_KICK
 
                         N_gas_swallowed++;
 
@@ -418,6 +542,98 @@ int blackhole_swallow_and_kick_evaluate(int target, int mode, int *nexport, int 
                 
                 
                 
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)                
+                /* now, do any other feedback "kick" operations (which used the previous loops to calculate weights) */
+                if(mom>0)
+                {
+                    if(P[j].Type==0)
+                    {
+                        if((P[j].Mass>0)&&(P[j].SwallowID==0)) // not swallowed!
+                        {
+                            for(norm=0,k=0;k<3;k++)
+                            {
+                                dir[k] = P[j].Pos[k] - pos[k]; // should be away from BH
+                                norm += dir[k]*dir[k];
+                            }
+                            if(norm>0)
+                            {
+                                norm=sqrt(norm); for(k=0;k<3;k++) dir[k]/=norm;
+                                /* cos_theta with respect to disk of BH is given by dot product of r and Jgas */
+                                for(norm=0,k=0;k<3;k++) norm += dir[k]*Jgas_in_Kernel[k];
+                                theta = acos(fabs(norm));
+                                /* inject radiation pressure */
+                                
+#if defined(BH_COSMIC_RAYS)
+                                /* inject cosmic rays alongside continuous wind injection */
+                                mom_wt = bh_angleweight_localcoupling(j,BH_disk_hr,theta) / BH_angle_weighted_kernel_sum;
+                                double dEcr = mom_wt * All.BH_CosmicRay_Injection_Efficiency * (C / All.UnitVelocity_in_cm_per_s)*(C / All.UnitVelocity_in_cm_per_s) * mdot*dt;
+                                SphP[j].CosmicRayEnergy+=dEcr; SphP[j].CosmicRayEnergyPred+=dEcr;
+#ifdef COSMIC_RAYS_M1
+                                dEcr*=COSMIC_RAYS_M1; for(k=0;k<3;k++) {SphP[j].CosmicRayFlux[k]+=dEcr*dir[k]; SphP[j].CosmicRayFluxPred[k]+=dEcr*dir[k];}
+#endif
+#endif
+                                
+                                /* inject BAL winds, this is the more standard smooth feedback model */
+#if defined(BH_WIND_CONTINUOUS) && !defined(BH_WIND_KICK)
+                                mom_wt = bh_angleweight_localcoupling(j,BH_disk_hr,theta) / BH_angle_weighted_kernel_sum;
+                                double m_wind = mom_wt * (1-All.BAL_f_accretion)/(All.BAL_f_accretion) * mdot*dt; /* mass to couple */
+                                if(BH_angle_weighted_kernel_sum<=0) m_wind=0;
+                                
+//1. check if (Vw-V0)*rhat <= 0   [ equivalently, check if   |Vw| <= V0*rhat ]
+//2. if (1) is False, the wind will catch the particle, couple mass, momentum, energy, according to the equations above
+//3. if (1) is True, the wind will not catch the particle, or will only asymptotically catch it. For the sake of mass conservation in the disk, I think it is easiest to treat this like the 'marginal' case where the wind barely catches the particle. In this case, add the mass normally, but no momentum, and no energy, giving:
+//dm = m_wind
+//dV = 0
+//du = -mu*u0   [decrease the thermal energy slightly to account for adding more 'cold' material to it]
+                                
+                                double dvr_gas_to_bh, dr_gas_to_bh;
+                                for(dvr_gas_to_bh=dr_gas_to_bh=0, k=0;k<3;k++)
+                                {
+                                    dvr_gas_to_bh += (velocity[k]-P[j].Vel[k]) * (pos[k]-P[j].Pos[k]);
+                                    dr_gas_to_bh  += (pos[k]-P[j].Pos[k]) * (pos[k]-P[j].Pos[k]);
+                                }
+                                dvr_gas_to_bh /= dr_gas_to_bh ;
+                                
+                                /* add wind mass to particle, correcting density as needed */
+                                if(P[j].Hsml<=0)
+                                {
+                                    if(SphP[j].Density>0){SphP[j].Density*=(1+m_wind/P[j].Mass);} else {SphP[j].Density=m_wind*hinv3;}
+                                } else {
+                                    SphP[j].Density += kernel_zero * m_wind/(P[j].Hsml*P[j].Hsml*P[j].Hsml);
+                                }
+                                P[j].Mass += m_wind;                                 
+#ifdef HYDRO_MESHLESS_FINITE_VOLUME
+                                SphP[j].MassTrue += m_wind;
+#endif
+                                /* now add wind momentum to particle */
+                                if(dvr_gas_to_bh < All.BAL_v_outflow)   // gas moving away from BH at v < BAL speed
+                                {
+                                    double e_wind = 0;
+                                    for(k=0;k<3;k++)
+                                    {
+                                        // relative wind-particle velocity (in code units) including BH-particle motion;
+                                        norm = All.cf_atime*All.BAL_v_outflow*dir[k] + velocity[k]-P[j].Vel[k];
+                                        // momentum conservation gives the following change in velocities
+                                        P[j].Vel[k] += All.BlackHoleFeedbackFactor * norm * m_wind/P[j].Mass;
+                                        SphP[j].VelPred[k] += All.BlackHoleFeedbackFactor * norm * m_wind/P[j].Mass;
+                                        // and the shocked wind energy is given by
+                                        e_wind += (norm/All.cf_atime)*(norm/All.cf_atime);
+                                    }
+                                    e_wind *= 0.5*m_wind;
+                                    /* now add wind shock energy to particle */
+                                    e_wind *= 1 / P[j].Mass;
+                                    SphP[j].InternalEnergy += e_wind;
+                                    SphP[j].InternalEnergyPred += e_wind;
+                                } else {	// gas moving away from BH at wind speed already.
+                                    if(SphP[j].InternalEnergy * ( P[j].Mass - m_wind ) / P[j].Mass > 0)
+                                        SphP[j].InternalEnergy = SphP[j].InternalEnergy * ( P[j].Mass - m_wind ) / P[j].Mass;
+                                }
+#endif // if defined(BH_WIND_CONTINUOUS) && !defined(BH_WIND_KICK)
+                            } // norm > 0
+                        } // (P[j].Mass>0)&&(P[j].SwallowID==0)
+                    } // P[j].Type==0
+                } // (mom>0)&&(BH_angle_weighted_kernel_sum>0)
+#endif // defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)                
                 
 
                 
@@ -476,3 +692,249 @@ int blackhole_swallow_and_kick_evaluate(int target, int mode, int *nexport, int 
 
 
 
+#ifdef BH_WIND_SPAWN
+void spawn_bh_wind_feedback(void)
+{
+    int i, n_particles_split = 0, MPI_n_particles_split, dummy_gas_tag=0;
+    for(i = 0; i < NumPart; i++)
+        if(P[i].Type==0)
+        {
+            dummy_gas_tag=i;
+            break;
+        }
+    
+    /* don't loop or go forward if there are no gas particles in the domain, or the code will crash */
+    if(dummy_gas_tag >= 0)
+        for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i])
+            if(P[i].Type ==5)
+            {
+#ifndef IO_REDUCED_MODE
+                printf("attempting to spawn feedback particles for BH %d on Task %d \n", i, ThisTask);
+#endif
+                n_particles_split += blackhole_spawn_particle_wind_shell( i , dummy_gas_tag);
+            }
+    MPI_Allreduce(&n_particles_split, &MPI_n_particles_split, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+#ifndef IO_REDUCED_MODE
+    if(ThisTask == 0) {printf("Particle BH spawn check: %d particles spawned \n", MPI_n_particles_split);}
+#endif
+    /* rearrange_particle_sequence -must- be called immediately after this routine! */
+    All.TotNumPart += (long long)MPI_n_particles_split;
+    All.TotN_gas   += (long long)MPI_n_particles_split;
+    Gas_split       = n_particles_split;                    // specific to the local processor //
+    
+    rearrange_particle_sequence();
+}
+
+
+
+
+/*! this code copies what was used in merge_split.c for the gas particle split case */
+int blackhole_spawn_particle_wind_shell( int i, int dummy_sph_i_to_clone )
+{
+#ifndef IO_REDUCED_MODE
+    printf(" splitting BH %d using SphP particle %d\n", i, dummy_sph_i_to_clone);
+#endif
+    double mass_of_new_particle, total_mass_in_winds, dt;
+    int n_particles_split, bin; long j;
+    
+#ifndef WAKEUP
+    dt = (P[i].TimeBin ? (1 << P[i].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a;
+#else
+    dt = P[i].dt_step * All.Timebase_interval / All.cf_hubble_a;
+#endif
+    
+    /* here is where the details of the split are coded, the rest is bookkeeping */
+    total_mass_in_winds = BPP(i).unspawned_wind_mass;
+    n_particles_split   = floor( total_mass_in_winds / All.BAL_wind_particle_mass );
+    if( (n_particles_split == 0) || (n_particles_split < 1) ) {return 0;}
+    mass_of_new_particle = total_mass_in_winds / n_particles_split;
+#ifndef IO_REDUCED_MODE
+    printf("want to create %g mass in wind with %d new particles each of mass %g \n", total_mass_in_winds, n_particles_split, mass_of_new_particle);
+#endif
+    if(NumPart + n_particles_split >= All.MaxPart)
+    {
+        printf ("On Task=%d with NumPart=%d we tried to split a particle, but there is no space left...(All.MaxPart=%d). Try using more nodes, or raising PartAllocFac, or changing the split conditions to avoid this.\n", ThisTask, NumPart, All.MaxPart);
+        fflush(stdout); endrun(8888);
+    }
+    
+    int k=0;
+    double phi = 2.0*M_PI*get_random_number(i+1+ThisTask); // random from 0 to 2pi //
+    double cos_theta = 2.0*(get_random_number(i+3+2*ThisTask)-0.5); // random between 1 to -1 //
+    double d_r = 0.25 * KERNEL_CORE_SIZE*PPP[i].Hsml; // needs to be epsilon*Hsml where epsilon<<1, to maintain stability //
+    
+#ifndef SELFGRAVITY_OFF
+    d_r = DMAX(d_r , 2.0*EPSILON_FOR_TREERND_SUBNODE_SPLITTING * All.ForceSoftening[0]);
+#endif
+    d_r = DMIN(0.0001, d_r);
+    
+    for (bin = 0; bin < TIMEBINS; bin++) {if (TimeBinCount[bin] > 0) break;}
+    
+    /* find the first non-gas particle and move it to the end of the particle list */
+    for(j = NumPart; j < NumPart + n_particles_split; j++)
+    {
+        // i is the BH particle tag
+        // j is the new "spawed" particle's location
+        // dummy_sph_i_to_clone is a dummy SPH particle's tag to be used to init the wind particle
+        k=0;
+        phi = 2.0*M_PI*get_random_number(j+1+ThisTask); // random from 0 to 2pi //
+        cos_theta = 2.0*(get_random_number(j+3+2*ThisTask)-0.5); // random between 1 to -1 //
+        double d_r = 0.25 * KERNEL_CORE_SIZE*PPP[i].Hsml; // epsilon*Hsml; epsilon<<1, to maintain stability //
+        d_r = DMIN(0.0001, d_r);
+
+        /* set the pointers equal to one another -- all quantities get copied, we only have to modify what needs changing */
+        P[j]    = P[dummy_sph_i_to_clone];
+        SphP[j] = SphP[dummy_sph_i_to_clone];
+        P[j].TimeBin = bin;            // put this particle on the lowest active time bin
+        P[j].dt_step = bin ? (((integertime) 1) << bin) : 0;
+        
+        /* the particle needs to be 'born active' and added to the active set */
+        NextActiveParticle[j] = FirstActiveParticle;
+        FirstActiveParticle = j;
+        NumForceUpdate++;
+        
+        /* likewise add it to the counters that register how many particles are in each timebin */
+        TimeBinCount[bin]++;
+        TimeBinCountSph[bin]++;
+        PrevInTimeBin[j] = i;
+        
+        if(FirstInTimeBin[bin] < 0){  // only particle in this time bin on this task
+            FirstInTimeBin[bin] = j;
+            LastInTimeBin[bin] = j;
+            NextInTimeBin[j] = -1;
+            PrevInTimeBin[j] = -1;
+        } else {                      // there is already at least one particle; add this one "to the front" of the list
+            NextInTimeBin[j] = FirstInTimeBin[bin];
+            PrevInTimeBin[j] = -1;
+            PrevInTimeBin[FirstInTimeBin[bin]] = j;
+            FirstInTimeBin[bin] = j;
+        }
+        
+        /* the particle needs an ID: we give it a bit-flip from the original particle to signify the split */
+        unsigned int bits;
+        int SPLIT_GENERATIONS = 4;
+        for(bits = 0; SPLIT_GENERATIONS > (1 << bits); bits++);
+        /* correction:  We are using a fixed wind ID, to allow for trivial wind particle identification */
+        P[j].ID = All.AGNWindID;
+        
+        /* boost the condition number to be conservative, so we don't trigger madness in the kernel */
+        SphP[j].ConditionNumber *= 10.0;
+
+        SphP[j].Density *= 1e-10; /* will be re-generated anyways */
+        SphP[j].Pressure *= 1e-10; /* will be re-generated anyways */
+        P[j].Hsml = All.SofteningTable[0]; /* will be re-generated anyways */
+        PPP[j].Hsml = All.SofteningTable[0]; /* will be re-generated anyways */
+        
+        SphP[j].InternalEnergy = All.BAL_internal_temperature / (  PROTONMASS / BOLTZMANN * GAMMA_MINUS1 * All.UnitEnergy_in_cgs / All.UnitMass_in_g  );
+        SphP[j].InternalEnergyPred = SphP[j].InternalEnergy;
+        
+        /* this is a giant pile of variables to zero out. dont need everything here because we cloned a valid particle, but handy anyways */
+        for(k=0;k<3;k++) SphP[j].HydroAccel[k] = 0;
+        P[i].Particle_DivVel = 0; SphP[j].DtInternalEnergy = 0;
+#ifdef ENERGY_ENTROPY_SWITCH_IS_ACTIVE
+        SphP[j].MaxKineticEnergyNgb = 0;
+#endif
+#ifdef HYDRO_MESHLESS_FINITE_VOLUME
+        SphP[j].dMass = 0; SphP[j].DtMass = 0; SphP[j].MassTrue = P[j].Mass; for(k=0;k<3;k++) SphP[j].GravWorkTerm[k] = 0;
+#endif
+        
+#if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
+        PPPZ[j].AGS_zeta = 0;
+#ifdef ADAPTIVE_GRAVSOFT_FORALL
+        PPP[j].AGS_Hsml = PPP[j].Hsml;
+#endif
+#endif
+#ifdef CONDUCTION
+        SphP[j].Kappa_Conduction = 0;
+#endif
+#ifdef MHD_NON_IDEAL
+        SphP[j].Eta_MHD_OhmicResistivity_Coeff = 0; SphP[j].Eta_MHD_HallEffect_Coeff = 0; SphP[j].Eta_MHD_AmbiPolarDiffusion_Coeff = 0;
+#endif
+#ifdef VISCOSITY
+        SphP[j].Eta_ShearViscosity = 0; SphP[j].Zeta_BulkViscosity = 0;
+#endif
+#ifdef TURB_DIFFUSION
+        SphP[j].TD_DiffCoeff = 0;
+#endif
+#if defined(GALSF_SUBGRID_WINDS)
+#if (GALSF_SUBGRID_WIND_SCALING==1)
+        SphP[j].HostHaloMass = 0;
+#endif
+#endif
+#ifdef GALSF_FB_TURNOFF_COOLING
+        SphP[j].DelayTimeCoolingSNe = 0;
+#endif
+#ifdef GALSF
+        SphP[j].Sfr = 0;
+#endif
+#ifdef SPHAV_CD10_VISCOSITY_SWITCH
+        SphP[j].alpha = 0.0;
+#endif
+#if defined(BH_THERMALFEEDBACK)
+        SphP[j].Injected_BH_Energy = 0;
+#endif
+#ifdef RADTRANSFER
+        for(k=0;k<N_RT_FREQ_BINS;k++)
+        {
+            SphP[j].E_gamma[k] = 0;
+#if defined(RT_EVOLVE_NGAMMA)
+            SphP[j].E_gamma_Pred[k] = 0; SphP[j].Dt_E_gamma[k] = 0;
+#endif
+        }
+#endif
+
+        /* note, if you want to use this routine to inject magnetic flux or cosmic rays, do this below */
+#ifdef MAGNETIC
+        for(k=0;k<3;k++)
+        {
+            SphP[j].BPred[k] = SphP[j].B[k] = 0; /* add magnetic flux here if desired */
+            SphP[j].DtB[k] = 0;
+        }
+        SphP[j].divB = 0;
+#ifdef DIVBCLEANING_DEDNER
+        SphP[j].DtPhi = SphP[j].PhiPred = SphP[j].Phi = 0;
+#endif
+#endif
+        
+        
+        /* assign masses to both particles (so they sum correctly) */
+        P[j].Mass = mass_of_new_particle;
+#ifdef HYDRO_MESHLESS_FINITE_VOLUME
+        SphP[j].MassTrue = P[j].Mass;
+#endif
+        P[i].Mass -= P[j].Mass;
+        
+        /* shift the particle locations according to the random number we drew above */
+        double dx, dy, dz;
+        double sin_theta = sqrt(1 - cos_theta*cos_theta);
+        dx = d_r * sin_theta * cos(phi);
+        dy = d_r * sin_theta * sin(phi);
+        dz = d_r * cos_theta;
+
+        P[j].Pos[0] =  P[i].Pos[0] + dx;
+        P[j].Pos[1] =  P[i].Pos[1] + dy;
+        P[j].Pos[2] =  P[i].Pos[2] + dz;
+        
+        P[j].Vel[0] =  P[i].Vel[0] + dx / d_r * All.BAL_v_outflow * All.cf_atime;
+        P[j].Vel[1] =  P[i].Vel[1] + dy / d_r * All.BAL_v_outflow * All.cf_atime;
+        P[j].Vel[2] =  P[i].Vel[2] + dz / d_r * All.BAL_v_outflow * All.cf_atime;
+        SphP[j].VelPred[0] = P[j].Vel[0]; SphP[j].VelPred[1] = P[j].Vel[1]; SphP[j].VelPred[2] = P[j].Vel[2]; 
+        
+#if defined(BH_COSMIC_RAYS)
+        /* inject cosmic rays alongside wind injection */
+        double dEcr = All.BH_CosmicRay_Injection_Efficiency * P[j].Mass * (All.BAL_f_accretion/(1.-All.BAL_f_accretion)) * (C / All.UnitVelocity_in_cm_per_s)*(C / All.UnitVelocity_in_cm_per_s);
+        SphP[j].CosmicRayEnergy+=dEcr; SphP[j].CosmicRayEnergyPred+=dEcr;
+#ifdef COSMIC_RAYS_M1
+        dEcr*=COSMIC_RAYS_M1; for(k=0;k<3;k++) {SphP[j].CosmicRayFlux[k]+=dEcr*dir[k]; SphP[j].CosmicRayFluxPred[k]+=dEcr*dir[k];}
+#endif
+#endif
+
+        /* Note: New tree construction can be avoided because of  `force_add_star_to_tree()' */
+        force_add_star_to_tree(i, j);// (buggy)
+        /* we solve this by only calling the merge/split algorithm when we're doing the new domain decomposition */
+    }
+    
+    BPP(i).unspawned_wind_mass = 0.0;
+    
+    return n_particles_split;
+}
+#endif

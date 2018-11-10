@@ -365,10 +365,10 @@ void gravity_tree(void)
                     GravDataIn[j].Type = P[place].Type;
                     GravDataIn[j].OldAcc = P[place].OldAcc;
                     for(k = 0; k < 3; k++) {GravDataIn[j].Pos[k] = P[place].Pos[k];}
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
                     GravDataIn[j].Mass = P[place].Mass;
 #endif
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
                     if( (P[place].Type == 0) && (PPP[place].Hsml > All.ForceSoftening[P[place].Type]) )
                         GravDataIn[j].Soft = PPP[place].Hsml;
                     else
@@ -517,6 +517,9 @@ void gravity_tree(void)
 #endif
                     if(Ewald_iter==0) /* don't allow for an infinite hierarchy of these moments, or you will get nonsense */
                     {
+#ifdef RT_OTVET
+                        if(P[place].Type==0) {int k_freq; for(k_freq=0;k_freq<N_RT_FREQ_BINS;k_freq++) for(k=0;k<6;k++) SphP[place].ET[k_freq][k] += GravDataOut[j].ET[k_freq][k];}
+#endif
                     }
                     
                     
@@ -664,6 +667,30 @@ void gravity_tree(void)
     }
     
     
+#if defined(RT_OTVET)
+    /* normalize the Eddington tensors we just calculated by walking the tree */
+    for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i])
+        if(P[i].Type == 0)
+        {
+            int k_freq;
+            for(k_freq=0;k_freq<N_RT_FREQ_BINS;k_freq++)
+            {
+                double trace = SphP[i].ET[k_freq][0] + SphP[i].ET[k_freq][1] + SphP[i].ET[k_freq][2];
+#ifdef RT_FLUXLIMITEDDIFFUSION
+                trace = 0; /* force the code to always use the isotropic Eddington tensor */
+#endif
+                if(!isnan(trace) && (trace > 0))
+                {
+                    for(k = 0; k < 6; k++) SphP[i].ET[k_freq][k] /= trace;
+                }
+                else
+                {
+                    for(k = 0; k < 6; k++) {SphP[i].ET[k_freq][k] = 0.0;}
+                    SphP[i].ET[k_freq][0] = SphP[i].ET[k_freq][1] = SphP[i].ET[k_freq][2] = 1./3.;
+                }
+            }
+        }
+#endif
     
     /* Finally, the following factor allows a computation of a cosmological simulation
      with vacuum energy in physical coordinates */
@@ -696,6 +723,13 @@ void gravity_tree(void)
     
     
     
+#ifdef RT_SELFGRAVITY_OFF
+    /* if this is set, we zero out gravity here, just after computing it! */
+    for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i])
+    {
+	P[i].GravAccel[0]=P[i].GravAccel[1]=P[i].GravAccel[2]=0;
+    }
+#endif
     
     add_analytic_gravitational_forces();
     

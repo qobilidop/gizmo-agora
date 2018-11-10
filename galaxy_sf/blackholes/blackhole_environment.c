@@ -195,6 +195,10 @@ int blackhole_environment_evaluate(int target, int mode, int *nexport, int *nSen
     MyFloat *pos, h_i, *vel, hinv;
     MyIDType id;
     
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    MyFloat hinv3, wk, dwk, u;
+    u=wk=dwk=0;
+#endif
     
 #if defined(BH_GRAVCAPTURE_GAS)
     MyFloat mass, vrel, vbound, r2;
@@ -230,6 +234,9 @@ int blackhole_environment_evaluate(int target, int mode, int *nexport, int *nSen
     
     if(h_i < 0) return -1;
     hinv = 1./h_i;
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    hinv3 = hinv*hinv*hinv;
+#endif
     
     if(mode == 0)
     {
@@ -297,11 +304,16 @@ int blackhole_environment_evaluate(int target, int mode, int *nexport, int *nSen
                         out.Jgas_in_Kernel[0] += wt*(dP[1]*dv[2] - dP[2]*dv[1]);
                         out.Jgas_in_Kernel[1] += wt*(dP[2]*dv[0] - dP[0]*dv[2]);
                         out.Jgas_in_Kernel[2] += wt*(dP[0]*dv[1] - dP[1]*dv[0]);
-#if defined(BH_BONDI) || defined(BH_DRAG)
-                        for(k=0;k<3;k++)
-                        {
-                            out.BH_SurroundingGasVel[k] += wt*dv[k];
-                        }
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+                        u=0;
+                        for(k=0;k<3;k++) u+=dP[k]*dP[k];
+                        u=sqrt(u)/h_i;
+                        kernel_main(u,hinv3,hinv3*hinv,&wk,&dwk,1);
+                        dwk /= u*h_i;
+                        for(k=0;k<3;k++) out.GradRho_in_Kernel[k] += wt * dwk * fabs(dP[k]);
+#endif
+#if defined(BH_BONDI) || defined(BH_DRAG) || (BH_GRAVACCRETION == 4)
+                        for(k=0;k<3;k++) {out.BH_SurroundingGasVel[k] += wt*dv[k];}
 #endif
                     }
                     else if( P[j].Type==4 || ((P[j].Type==2||P[j].Type==3) && !(All.ComovingIntegrationOn)) ) 

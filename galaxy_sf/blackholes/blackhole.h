@@ -62,6 +62,9 @@ void set_blackhole_new_mass(int i, int n, double dt);
 #if defined(BH_DRAG) || defined(BH_DYNFRICTION)
 void set_blackhole_drag(int i, int n, double dt);
 #endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+void set_blackhole_long_range_rp(int i, int n);
+#endif
 
 
 #endif

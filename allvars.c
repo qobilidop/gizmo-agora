@@ -114,6 +114,12 @@ double TimeBin_BH_Mdot[TIMEBINS];
 double TimeBin_BH_Medd[TIMEBINS];
 #endif
 
+#ifdef RT_CHEM_PHOTOION
+double nu[N_RT_FREQ_BINS];
+double rt_sigma_HI[N_RT_FREQ_BINS];
+double rt_sigma_HeI[N_RT_FREQ_BINS];
+double rt_sigma_HeII[N_RT_FREQ_BINS];
+#endif
 
 
 char DumpFlag = 1;
@@ -200,6 +206,9 @@ FILE
 *FdEnergy,      /*!< file handle for energy.txt log-file. */
 *FdTimings,     /*!< file handle for timings.txt log-file. */
 *FdBalance,     /*!< file handle for balance.txt log-file. */
+#ifdef RT_CHEM_PHOTOION
+*FdRad,         /*!< file handle for radtransfer.txt log-file. */
+#endif
 #ifdef TURB_DRIVING
 *FdTurb,        /*!< file handle for turb.txt log-file */
 #endif
@@ -225,6 +234,9 @@ FILE *FdBlackHoles;		/*!< file handle for blackholes.txt log-file. */
 FILE *FdBlackHolesDetails;
 #ifdef BH_OUTPUT_MOREINFO
 FILE *FdBhMergerDetails;
+#ifdef BH_WIND_KICK
+FILE *FdBhWindDetails;
+#endif
 #endif
 #endif
 #endif
@@ -340,5 +352,8 @@ int maxThreads = 1;
 #endif
 
 
+#ifdef DM_SIDM
+MyDouble GeoFactorTable[GEOFACTOR_TABLE_LENGTH];
+#endif
 
 

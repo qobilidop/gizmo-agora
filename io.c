@@ -342,7 +342,7 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             break;
             
         case IO_NE:		/* electron abundance */
-#if defined(COOLING) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(COOLING) || defined(RT_CHEM_PHOTOION)
             for(n = 0; n < pc; pindex++)
                 if(P[pindex].Type == type)
                 {
@@ -353,11 +353,13 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             break;
             
         case IO_NH:		/* neutral hydrogen fraction */
-#if defined(COOLING) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(COOLING) || defined(RT_CHEM_PHOTOION)
             for(n = 0; n < pc; pindex++)
                 if(P[pindex].Type == type)
                 {
-#if   (COOL_GRACKLE_CHEMISTRY > 0)
+#if defined(RT_CHEM_PHOTOION)
+                    *fp++ = SphP[pindex].HI;
+#elif (COOL_GRACKLE_CHEMISTRY > 0)
                     *fp++ = SphP[pindex].grHI;
 #else
                     double u, ne, nh0 = 0, mu = 1, temp, nHeII, nhp, nHe0, nHepp;
@@ -368,14 +370,22 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
 #endif
                     n++;
                 }
-#endif // #if defined(COOLING) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#endif // #if defined(COOLING) || defined(RT_CHEM_PHOTOION)
             break;
             
         case IO_HII:		/* ionized hydrogen abundance */
+#if defined(RT_CHEM_PHOTOION)
+            for(n = 0; n < pc; pindex++)
+                if(P[pindex].Type == type)
+                {
+                    *fp++ = SphP[pindex].HII;
+                    n++;
+                }
+#endif
             break;
             
         case IO_HeI:		/* neutral Helium */
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_HE)
+#if defined(RT_CHEM_PHOTOION_HE)
             for(n = 0; n < pc; pindex++)
                 if(P[pindex].Type == type)
                 {
@@ -386,7 +396,7 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             break;
             
         case IO_HeII:		/* ionized Helium */
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_HE)
+#if defined(RT_CHEM_PHOTOION_HE)
             for(n = 0; n < pc; pindex++)
                 if(P[pindex].Type == type)
                 {
@@ -664,6 +674,9 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             break;
             
         case IO_COSMICRAY_ENERGY:	/* energy in the cosmic ray field  */
+            break;
+
+        case IO_COSMICRAY_KAPPA:    /* local CR diffusion constant */
             break;
 
         case IO_COSMICRAY_ALFVEN:    /* energy in the resonant (~gyro-radii) Alfven modes field, in the +/- (with respect to B) fields  */
@@ -962,12 +975,46 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
 
             
         case IO_RADGAMMA:
+#ifdef RADTRANSFER
+            for(n = 0; n < pc; pindex++)
+                if(P[pindex].Type == type)
+                {
+                    for(k = 0; k < N_RT_FREQ_BINS; k++)
+                        fp[k] = SphP[pindex].E_gamma[k];
+                    
+                    n++;
+                    fp += N_RT_FREQ_BINS;
+                }
+#endif
             break;
             
         case IO_RAD_ACCEL:
+#ifdef RT_RAD_PRESSURE_OUTPUT
+            for(n = 0; n < pc; pindex++)
+                if(P[pindex].Type == type)
+                {
+                    for(k = 0; k < 3; k++) {fp[k] = SphP[pindex].RadAccel[k];}                    
+                    n++;
+                    fp += 3;
+                }
+#endif
             break;
             
         case IO_EDDINGTON_TENSOR:
+#ifdef RADTRANSFER
+            for(n = 0; n < pc; pindex++)
+                if(P[pindex].Type == type)
+                {
+                    for(k = 0; k < 6; k++)
+                    {
+                        int kf;
+                        for(kf = 0; kf < N_RT_FREQ_BINS; kf++)
+                            fp[N_RT_FREQ_BINS*k + kf] = SphP[pindex].ET[kf][k];
+                    }
+                    n++;
+                    fp += 6*N_RT_FREQ_BINS;
+                }
+#endif
             break;
             
         case IO_DMHSML:
@@ -1247,6 +1294,7 @@ int get_bytes_per_blockelement(enum iofields blocknr, int mode)
         case IO_SHEARCOEFF:
         case IO_TSTP:
         case IO_COSMICRAY_ENERGY:
+        case IO_COSMICRAY_KAPPA:
         case IO_DIVB:
         case IO_VRMS:
         case IO_VRAD:
@@ -1319,9 +1367,21 @@ int get_bytes_per_blockelement(enum iofields blocknr, int mode)
             break;
             
         case IO_RADGAMMA:
+#ifdef RADTRANSFER
+            if(mode)
+                bytes_per_blockelement = N_RT_FREQ_BINS * sizeof(MyInputFloat);
+            else
+                bytes_per_blockelement = N_RT_FREQ_BINS * sizeof(MyOutputFloat);
+#endif
             break;
             
         case IO_EDDINGTON_TENSOR:
+#ifdef RADTRANSFER
+            if(mode)
+                bytes_per_blockelement = (6*N_RT_FREQ_BINS) * sizeof(MyInputFloat);
+            else
+                bytes_per_blockelement = (6*N_RT_FREQ_BINS) * sizeof(MyOutputFloat);
+#endif
             break;
 
             
@@ -1501,6 +1561,7 @@ int get_values_per_blockelement(enum iofields blocknr)
         case IO_VDIV:
         case IO_VROT:
         case IO_COSMICRAY_ENERGY:
+        case IO_COSMICRAY_KAPPA:
         case IO_DIVB:
         case IO_ABVC:
         case IO_AMDC:
@@ -1566,11 +1627,19 @@ int get_values_per_blockelement(enum iofields blocknr)
             break;
 
         case IO_EDDINGTON_TENSOR:
+#ifdef RADTRANSFER
+            values = (6*N_RT_FREQ_BINS);
+#else
             values = 0;
+#endif
             break;
             
         case IO_RADGAMMA:
+#ifdef RADTRANSFER
+            values = N_RT_FREQ_BINS;
+#else
             values = 0;
+#endif
             break;
             
         case IO_Z:
@@ -1723,6 +1792,7 @@ long get_particles_in_block(enum iofields blocknr, int *typelist)
         case IO_VROT:
         case IO_VORT:
         case IO_COSMICRAY_ENERGY:
+        case IO_COSMICRAY_KAPPA:
         case IO_COSMICRAY_ALFVEN:
         case IO_DIVB:
         case IO_ABVC:
@@ -1904,18 +1974,26 @@ int blockpresent(enum iofields blocknr)
             
         case IO_NE:
         case IO_NH:
-#if defined(COOLING) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(COOLING) || defined(RADTRANSFER)
             return 1;
 #endif
             return 0;
             break;
             
         case IO_RADGAMMA:
+#if defined(RADTRANSFER)
+            return 1;
+#else
             return 0;
+#endif
             break;
             
         case IO_RAD_ACCEL:
+#if defined(RT_RAD_PRESSURE_OUTPUT)
+            return 1;
+#else
             return 0;
+#endif
             
         case IO_HSMS:
             return 0;
@@ -1959,7 +2037,7 @@ int blockpresent(enum iofields blocknr)
             
         case IO_HeI:
         case IO_HeII:
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_HE)
+#if defined(RT_CHEM_PHOTOION_HE)
             return 1;
 #else
             return 0;
@@ -2099,6 +2177,10 @@ int blockpresent(enum iofields blocknr)
             break;
 
         case IO_COSMICRAY_ENERGY:
+            return 0;
+            break;
+
+        case IO_COSMICRAY_KAPPA:
             return 0;
             break;
 
@@ -2295,7 +2377,11 @@ int blockpresent(enum iofields blocknr)
 
             
         case IO_EDDINGTON_TENSOR:
+#if defined(RADTRANSFER)
+            return 1;
+#else
             return 0;
+#endif
             
         case IO_DMHSML:
         case IO_DMDENSITY:
@@ -2554,6 +2640,9 @@ void get_Tab_IO_Label(enum iofields blocknr, char *label)
             break;    
         case IO_COSMICRAY_ENERGY:
             strncpy(label, "CREG ", 4);
+            break;
+        case IO_COSMICRAY_KAPPA:
+            strncpy(label, "CRK ", 4);
             break;
         case IO_COSMICRAY_ALFVEN:
             strncpy(label, "CRAV ", 4);
@@ -2923,6 +3012,9 @@ void get_dataset_name(enum iofields blocknr, char *buf)
             break;    
         case IO_COSMICRAY_ENERGY:
             strcpy(buf, "CosmicRayEnergy");
+            break;
+        case IO_COSMICRAY_KAPPA:
+            strcpy(buf, "CosmicRayDiffusivity");
             break;
         case IO_COSMICRAY_ALFVEN:
             strcpy(buf, "CosmicRayAlfvenEnergyPM");

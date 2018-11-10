@@ -514,6 +514,17 @@ void force_update_node_recursive(int no, int sib, int father)
 #ifdef DM_SCALARFIELD_SCREENING
     MyFloat s_dm[3], vs_dm[3], mass_dm;
 #endif
+#ifdef RT_USE_GRAVTREE
+    MyFloat stellar_lum[N_RT_FREQ_BINS], sigma_eff=0;
+    for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
+#ifdef RT_LEBRON
+    sigma_eff = 0.955 * All.UnitMass_in_g*All.HubbleParam / (All.UnitLength_in_cm*All.UnitLength_in_cm); // (should be in physical, not comoving units)
+#endif
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    MyFloat rt_source_lum_s[3];
+    MyFloat rt_source_lum_vs[3];
+#endif
     
     MyFloat maxsoft;
     
@@ -536,6 +547,14 @@ void force_update_node_recursive(int no, int sib, int father)
         
         last = no;
         
+#ifdef RT_USE_GRAVTREE
+        for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+        rt_source_lum_s[0] = rt_source_lum_vs[0] = 0;
+        rt_source_lum_s[1] = rt_source_lum_vs[1] = 0;
+        rt_source_lum_s[2] = rt_source_lum_vs[2] = 0;
+#endif
 #ifdef BH_CALC_DISTANCES
         MyFloat bh_mass=0;
         MyFloat bh_pos_times_mass[3]={0,0,0};   /* position of each black hole in the node times its mass; divide by total mass at the end to get COM */
@@ -593,6 +612,18 @@ void force_update_node_recursive(int no, int sib, int father)
                         vs[0] += (Nodes[p].u.d.mass * Extnodes[p].vs[0]);
                         vs[1] += (Nodes[p].u.d.mass * Extnodes[p].vs[1]);
                         vs[2] += (Nodes[p].u.d.mass * Extnodes[p].vs[2]);
+#ifdef RT_USE_GRAVTREE
+                        for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += (Nodes[p].stellar_lum[k]);}
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+                        double l_tot=0; for(k=0;k<N_RT_FREQ_BINS;k++) {l_tot += (Nodes[p].stellar_lum[k]);}
+                        rt_source_lum_s[0] += (l_tot * Nodes[p].rt_source_lum_s[0]);
+                        rt_source_lum_s[1] += (l_tot * Nodes[p].rt_source_lum_s[1]);
+                        rt_source_lum_s[2] += (l_tot * Nodes[p].rt_source_lum_s[2]);
+                        rt_source_lum_vs[0] += (l_tot * Extnodes[p].rt_source_lum_vs[0]);
+                        rt_source_lum_vs[1] += (l_tot * Extnodes[p].rt_source_lum_vs[1]);
+                        rt_source_lum_vs[2] += (l_tot * Extnodes[p].rt_source_lum_vs[2]);
+#endif
 #ifdef BH_CALC_DISTANCES
                         bh_mass += Nodes[p].bh_mass;
                         bh_pos_times_mass[0] += Nodes[p].bh_pos[0] * Nodes[p].bh_mass;
@@ -644,6 +675,22 @@ void force_update_node_recursive(int no, int sib, int father)
                     vs[1] += (pa->Mass * pa->Vel[1]);
                     vs[2] += (pa->Mass * pa->Vel[2]);
                     
+#ifdef RT_USE_GRAVTREE
+                    double lum[N_RT_FREQ_BINS];
+                    int active_check = rt_get_source_luminosity(p,sigma_eff,lum);
+                    if(active_check)
+                    {
+                        double l_sum = 0; for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += lum[k]; l_sum += lum[k];}
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+                        rt_source_lum_s[0] += (l_sum * pa->Pos[0]);
+                        rt_source_lum_s[1] += (l_sum * pa->Pos[1]);
+                        rt_source_lum_s[2] += (l_sum * pa->Pos[2]);
+                        rt_source_lum_vs[0] += (l_sum * pa->Vel[0]);
+                        rt_source_lum_vs[1] += (l_sum * pa->Vel[1]);
+                        rt_source_lum_vs[2] += (l_sum * pa->Vel[2]);
+#endif
+                    }
+#endif
                     
                     
                     
@@ -729,6 +776,27 @@ void force_update_node_recursive(int no, int sib, int father)
             vs[2] = 0;
         }
         
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+        double l_tot=0; for(k=0;k<N_RT_FREQ_BINS;k++) {l_tot += stellar_lum[k];}
+        if(l_tot)
+        {
+            rt_source_lum_s[0] /= l_tot;
+            rt_source_lum_s[1] /= l_tot;
+            rt_source_lum_s[2] /= l_tot;
+            rt_source_lum_vs[0] /= l_tot;
+            rt_source_lum_vs[1] /= l_tot;
+            rt_source_lum_vs[2] /= l_tot;
+        }
+        else
+        {
+            rt_source_lum_s[0] = Nodes[no].center[0];
+            rt_source_lum_s[1] = Nodes[no].center[1];
+            rt_source_lum_s[2] = Nodes[no].center[2];
+            rt_source_lum_vs[0] = 0;
+            rt_source_lum_vs[1] = 0;
+            rt_source_lum_vs[2] = 0;
+        }
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
         if(mass_dm)
         {
@@ -757,6 +825,20 @@ void force_update_node_recursive(int no, int sib, int father)
         Nodes[no].u.d.s[1] = s[1];
         Nodes[no].u.d.s[2] = s[2];
         Nodes[no].GravCost = 0;
+#ifdef RT_USE_GRAVTREE
+        for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = stellar_lum[k];}
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+        Nodes[no].rt_source_lum_s[0] = rt_source_lum_s[0];
+        Nodes[no].rt_source_lum_s[1] = rt_source_lum_s[1];
+        Nodes[no].rt_source_lum_s[2] = rt_source_lum_s[2];
+        Extnodes[no].rt_source_lum_vs[0] = rt_source_lum_vs[0];
+        Extnodes[no].rt_source_lum_vs[1] = rt_source_lum_vs[1];
+        Extnodes[no].rt_source_lum_vs[2] = rt_source_lum_vs[2];
+        Extnodes[no].rt_source_lum_dp[0] = 0;
+        Extnodes[no].rt_source_lum_dp[1] = 0;
+        Extnodes[no].rt_source_lum_dp[2] = 0;
+#endif
 #ifdef BH_CALC_DISTANCES
         Nodes[no].bh_mass = bh_mass;
         if(bh_mass > 0)
@@ -845,6 +927,13 @@ void force_exchange_pseudodata(void)
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
         MyFloat maxsoft;
 #endif
+#ifdef RT_USE_GRAVTREE
+        MyFloat stellar_lum[N_RT_FREQ_BINS];
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+        MyFloat rt_source_lum_s[3];
+        MyFloat rt_source_lum_vs[3];
+#endif
 #ifdef BH_CALC_DISTANCES
         MyFloat bh_mass;
         MyFloat bh_pos[3];
@@ -893,6 +982,17 @@ void force_exchange_pseudodata(void)
             DomainMoment[i].bitflags = Nodes[no].u.d.bitflags;
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
             DomainMoment[i].maxsoft = Nodes[no].maxsoft;
+#endif
+#ifdef RT_USE_GRAVTREE
+            int k; for(k=0;k<N_RT_FREQ_BINS;k++) {DomainMoment[i].stellar_lum[k] = Nodes[no].stellar_lum[k];}
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+            DomainMoment[i].rt_source_lum_s[0] = Nodes[no].rt_source_lum_s[0];
+            DomainMoment[i].rt_source_lum_s[1] = Nodes[no].rt_source_lum_s[1];
+            DomainMoment[i].rt_source_lum_s[2] = Nodes[no].rt_source_lum_s[2];
+            DomainMoment[i].rt_source_lum_vs[0] = Extnodes[no].rt_source_lum_vs[0];
+            DomainMoment[i].rt_source_lum_vs[1] = Extnodes[no].rt_source_lum_vs[1];
+            DomainMoment[i].rt_source_lum_vs[2] = Extnodes[no].rt_source_lum_vs[2];
 #endif
 #ifdef BH_CALC_DISTANCES
             DomainMoment[i].bh_mass = Nodes[no].bh_mass;
@@ -959,6 +1059,17 @@ void force_exchange_pseudodata(void)
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
                     Nodes[no].maxsoft = DomainMoment[i].maxsoft;
 #endif
+#ifdef RT_USE_GRAVTREE
+                    int k; for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = DomainMoment[i].stellar_lum[k];}
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+                    Nodes[no].rt_source_lum_s[0] = DomainMoment[i].rt_source_lum_s[0];
+                    Nodes[no].rt_source_lum_s[1] = DomainMoment[i].rt_source_lum_s[1];
+                    Nodes[no].rt_source_lum_s[2] = DomainMoment[i].rt_source_lum_s[2];
+                    Extnodes[no].rt_source_lum_vs[0] = DomainMoment[i].rt_source_lum_vs[0];
+                    Extnodes[no].rt_source_lum_vs[1] = DomainMoment[i].rt_source_lum_vs[1];
+                    Extnodes[no].rt_source_lum_vs[2] = DomainMoment[i].rt_source_lum_vs[2];
+#endif
 #ifdef BH_CALC_DISTANCES
                     Nodes[no].bh_mass = DomainMoment[i].bh_mass;
                     Nodes[no].bh_pos[0] = DomainMoment[i].bh_pos[0];
@@ -991,12 +1102,30 @@ void force_treeupdate_pseudos(int no)
     MyFloat divVmax;
     MyFloat s[3], vs[3], mass;
     
+#ifdef RT_USE_GRAVTREE
+    MyFloat stellar_lum[N_RT_FREQ_BINS];
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    MyFloat rt_source_lum_s[3];
+    MyFloat rt_source_lum_vs[3];
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
     MyFloat s_dm[3], vs_dm[3], mass_dm;
 #endif
     
     MyFloat maxsoft;
     
+#ifdef RT_USE_GRAVTREE
+    for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    rt_source_lum_s[0] = 0;
+    rt_source_lum_s[1] = 0;
+    rt_source_lum_s[2] = 0;
+    rt_source_lum_vs[0] = 0;
+    rt_source_lum_vs[1] = 0;
+    rt_source_lum_vs[2] = 0;
+#endif
 #ifdef BH_CALC_DISTANCES
     MyFloat bh_mass=0;
     MyFloat bh_pos_times_mass[3]={0,0,0};
@@ -1033,6 +1162,18 @@ void force_treeupdate_pseudos(int no)
             s[0] += (Nodes[p].u.d.mass * Nodes[p].u.d.s[0]);
             s[1] += (Nodes[p].u.d.mass * Nodes[p].u.d.s[1]);
             s[2] += (Nodes[p].u.d.mass * Nodes[p].u.d.s[2]);
+#ifdef RT_USE_GRAVTREE
+            int k; for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += (Nodes[p].stellar_lum[k]);}
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+            double l_tot=0; for(k=0;k<N_RT_FREQ_BINS;k++) {l_tot += (Nodes[p].stellar_lum[k]);}
+            rt_source_lum_s[0] += (l_tot * Nodes[p].rt_source_lum_s[0]);
+            rt_source_lum_s[1] += (l_tot * Nodes[p].rt_source_lum_s[1]);
+            rt_source_lum_s[2] += (l_tot * Nodes[p].rt_source_lum_s[2]);
+            rt_source_lum_vs[0] += (l_tot * Extnodes[p].rt_source_lum_vs[0]);
+            rt_source_lum_vs[1] += (l_tot * Extnodes[p].rt_source_lum_vs[1]);
+            rt_source_lum_vs[2] += (l_tot * Extnodes[p].rt_source_lum_vs[2]);
+#endif
 #ifdef BH_CALC_DISTANCES
             bh_mass += Nodes[p].bh_mass;
             bh_pos_times_mass[0] += Nodes[p].bh_pos[0] * Nodes[p].bh_mass;
@@ -1095,6 +1236,27 @@ void force_treeupdate_pseudos(int no)
         vs[2] = 0;
     }
     
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    double l_tot=0; int kfreq; for(kfreq=0;kfreq<N_RT_FREQ_BINS;kfreq++) {l_tot += stellar_lum[kfreq];}
+    if(l_tot)
+    {
+        rt_source_lum_s[0] /= l_tot;
+        rt_source_lum_s[1] /= l_tot;
+        rt_source_lum_s[2] /= l_tot;
+        rt_source_lum_vs[0] /= l_tot;
+        rt_source_lum_vs[1] /= l_tot;
+        rt_source_lum_vs[2] /= l_tot;
+    }
+    else
+    {
+        rt_source_lum_s[0] = Nodes[no].center[0];
+        rt_source_lum_s[1] = Nodes[no].center[1];
+        rt_source_lum_s[2] = Nodes[no].center[2];
+        rt_source_lum_vs[0] = 0;
+        rt_source_lum_vs[1] = 0;
+        rt_source_lum_vs[2] = 0;
+    }
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
     if(mass_dm)
     {
@@ -1124,6 +1286,17 @@ void force_treeupdate_pseudos(int no)
     Extnodes[no].vs[1] = vs[1];
     Extnodes[no].vs[2] = vs[2];
     Nodes[no].u.d.mass = mass;
+#ifdef RT_USE_GRAVTREE
+    int k; for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = stellar_lum[k];}
+#endif
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    Nodes[no].rt_source_lum_s[0] = rt_source_lum_s[0];
+    Nodes[no].rt_source_lum_s[1] = rt_source_lum_s[1];
+    Nodes[no].rt_source_lum_s[2] = rt_source_lum_s[2];
+    Extnodes[no].rt_source_lum_vs[0] = rt_source_lum_vs[0];
+    Extnodes[no].rt_source_lum_vs[1] = rt_source_lum_vs[1];
+    Extnodes[no].rt_source_lum_vs[2] = rt_source_lum_vs[2];
+#endif
 #ifdef BH_CALC_DISTANCES
     Nodes[no].bh_mass = bh_mass;
     if(bh_mass > 0)
@@ -1281,6 +1454,15 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     double dxx, dyy, dzz, pdxx, pdyy, pdzz;
 #endif
     
+#ifdef RT_USE_GRAVTREE
+    double mass_stellarlum[N_RT_FREQ_BINS];
+    int k_freq; for(k_freq=0;k_freq<N_RT_FREQ_BINS;k_freq++) {mass_stellarlum[k_freq]=0;}
+    double dx_stellarlum=0, dy_stellarlum=0, dz_stellarlum=0, sigma_eff=0;
+    int valid_gas_particle_for_rt = 0;
+#ifdef RT_OTVET
+    double RT_ET[N_RT_FREQ_BINS][6]={{0}};
+#endif
+#endif
     
 #ifdef BH_CALC_DISTANCES
     double min_dist_to_bh2=1.e37;
@@ -1291,7 +1473,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #ifdef DM_SCALARFIELD_SCREENING
     double dx_dm = 0, dy_dm = 0, dz_dm = 0, mass_dm = 0;
 #endif
-#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE)
     double soft=0, pmass;
 #if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     double h_p_inv=0, h_p3_inv=0, u_p=0, zeta, zeta_sec=0;
@@ -1326,11 +1508,11 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
         pos_y = P[target].Pos[1];
         pos_z = P[target].Pos[2];
         ptype = P[target].Type;
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         pmass = P[target].Mass;
 #endif
         aold = All.ErrTolForceAcc * P[target].OldAcc;
-#if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL)
+#if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL)
         soft = All.ForceSoftening[ptype];
 #endif
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS)
@@ -1366,12 +1548,12 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
         pos_x = GravDataGet[target].Pos[0];
         pos_y = GravDataGet[target].Pos[1];
         pos_z = GravDataGet[target].Pos[2];
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
+#if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         pmass = GravDataGet[target].Mass;
 #endif
         ptype = GravDataGet[target].Type;
         aold = All.ErrTolForceAcc * GravDataGet[target].OldAcc;
-#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE)
         soft = GravDataGet[target].Soft;
 #if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
         zeta = GravDataGet[target].AGS_zeta;
@@ -1399,7 +1581,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     
 
 #ifdef NEIGHBORS_MUST_BE_COMPUTED_EXPLICITLY_IN_FORCETREE
-#ifdef ADAPTIVE_GRAVSOFT_FORALL
+#if defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     double targeth_si = soft;
 #else
     double targeth_si = All.ForceSoftening[ptype];
@@ -1413,7 +1595,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
     h=soft;
 #else
-    if(ptype==0) h=soft; else h=All.ForceSoftening[ptype];
+    if(ptype==0) {h=soft;} else {h=All.ForceSoftening[ptype];}
 #endif
     h_inv = 1.0 / h;
     h3_inv = h_inv * h_inv * h_inv;
@@ -1421,6 +1603,21 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
     
     
     
+#ifdef RT_USE_GRAVTREE
+    if(ptype==0) {if((soft>0)&&(pmass>0)) {valid_gas_particle_for_rt = 1;}}
+#ifdef RT_LEBRON
+    double fac_stellum[N_RT_FREQ_BINS],fac_stellum_0=0;
+    if(valid_gas_particle_for_rt)
+    {
+        double sigma_particle =  pmass / (soft*soft) * pow( (float)All.DesNumNgb, 0.66 ) * All.cf_a2inv;
+        fac_stellum_0 = - 1.15 * All.PhotonMomentum_Coupled_Fraction * (1.626e-11 / sigma_particle) /
+            (All.G * All.UnitVelocity_in_cm_per_s * All.HubbleParam / All.UnitTime_in_s);
+        sigma_eff = 0.955 * All.UnitMass_in_g*All.HubbleParam / (All.UnitLength_in_cm*All.UnitLength_in_cm); // (should be in -physical-, not comoving units now) //
+        double sigma_eff_abs = 0.333 * 0.955 * sigma_particle; // (physical units) *(Z/Zsolar) for metal-dept
+        int kf; for(kf=0;kf<N_RT_FREQ_BINS;kf++) {fac_stellum[kf] = 1 - exp(-rt_kappa(0,kf)*sigma_eff_abs);}
+    }
+#endif
+#endif
     
     
     
@@ -1481,6 +1678,15 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif
 
                 
+#ifdef RT_USE_GRAVTREE
+                if(valid_gas_particle_for_rt)	/* we have a (valid) gas particle as target */
+                {
+                    dx_stellarlum=dx; dy_stellarlum=dy; dz_stellarlum=dz;
+                    double lum[N_RT_FREQ_BINS];
+                    int active_check = rt_get_source_luminosity(no,sigma_eff,lum);
+                    int kf; for(kf=0;kf<N_RT_FREQ_BINS;kf++) {if(active_check) {mass_stellarlum[kf]=lum[kf];} else {mass_stellarlum[kf]=0;}}
+                }
+#endif
                 
                 
 #ifdef DM_SCALARFIELD_SCREENING
@@ -1658,6 +1864,20 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 }
 #endif
                 
+#ifdef RT_USE_GRAVTREE
+                if(valid_gas_particle_for_rt)	/* we have a (valid) gas particle as target */
+                {
+                    int kf; for(kf=0;kf<N_RT_FREQ_BINS;kf++) {mass_stellarlum[kf] = nop->stellar_lum[kf];}
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+                    dx_stellarlum = nop->rt_source_lum_s[0] - pos_x; dy_stellarlum = nop->rt_source_lum_s[1] - pos_y; dz_stellarlum = nop->rt_source_lum_s[2] - pos_z;
+#if defined(BOX_PERIODIC) && !defined(GRAVITY_NOT_PERIODIC)
+                    NEAREST_XYZ(dx_stellarlum,dy_stellarlum,dz_stellarlum,-1);
+#endif
+#else
+                    dx_stellarlum = dx; dy_stellarlum = dy; dz_stellarlum = dz;
+#endif
+                }
+#endif
                 
                 
 #ifdef DM_SCALARFIELD_SCREENING
@@ -1750,7 +1970,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 else		/* check relative opening criterion */
                 {
                     /* force node to open if we are within the gravitational softening length */
-#if !(defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(FLAG_NOT_IN_PUBLIC_CODE))
+#if !(defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(RT_USE_GRAVTREE))
                     double soft = All.ForceSoftening[ptype];
 #endif
                     if((r2 < (soft+0.6*nop->len)*(soft+0.6*nop->len)) || (r2 < (nop->maxsoft+0.6*nop->len)*(nop->maxsoft+0.6*nop->len)))
@@ -1793,7 +2013,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
                 /* set secondary softening and zeta term */
-                if (nop->maxsoft > 0) h_p_inv = 1.0 / nop->maxsoft; else h_p_inv = 0;
+                if(nop->maxsoft > 0) {h_p_inv = 1.0 / nop->maxsoft;} else {h_p_inv = 0;}
                 zeta_sec = 0;
                 ptype_sec = -1;
                 j0_sec_for_ags = -1;
@@ -1962,6 +2182,46 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
             ninteractions++;
             
             
+#ifdef RT_USE_GRAVTREE
+            if(valid_gas_particle_for_rt)	/* we have a (valid) gas particle as target */
+            {
+                r2 = dx_stellarlum*dx_stellarlum + dy_stellarlum*dy_stellarlum + dz_stellarlum*dz_stellarlum; r = sqrt(r2);
+                if(r >= soft) {fac=1./(r2*r);} else {h_inv=1./soft; h3_inv=h_inv*h_inv*h_inv; u=r*h_inv; fac=kernel_gravity(u,h_inv,h3_inv,1);}
+                if((soft>r)&&(soft>0)) fac *= (r2/(soft*soft)); // don't allow cross-section > r2
+                
+#ifdef RT_OTVET
+                /* use the information we have here from the gravity tree (optically thin incident fluxes) to estimate the Eddington tensor */
+                // for now, just one tensor; so we use the sum of luminosities to determine the weights in the Eddington tensor
+                if(r>0)
+                {
+                    double fac_sum=0;
+                    int kf_rt;
+                    for(kf_rt=0;kf_rt<N_RT_FREQ_BINS;kf_rt++)
+                    {
+                        fac_sum = mass_stellarlum[kf_rt];
+                        fac_sum *= fac / (1.e-37 + r); // units are not important, since ET will be dimensionless, but final ET should scale as ~luminosity/r^2
+                        RT_ET[kf_rt][0] += dx_stellarlum * dx_stellarlum * fac_sum;
+                        RT_ET[kf_rt][1] += dy_stellarlum * dy_stellarlum * fac_sum;
+                        RT_ET[kf_rt][2] += dz_stellarlum * dz_stellarlum * fac_sum;
+                        RT_ET[kf_rt][3] += dx_stellarlum * dy_stellarlum * fac_sum;
+                        RT_ET[kf_rt][4] += dy_stellarlum * dz_stellarlum * fac_sum;
+                        RT_ET[kf_rt][5] += dz_stellarlum * dx_stellarlum * fac_sum;
+                    }
+                }
+
+#endif
+                
+#ifdef RT_LEBRON
+                /* if we are using the FIRE RT module, we simply apply an on-the-spot approximation and do the absorption now.
+                 first apply the appropriate normalization (and swap the sign)  */
+                fac *= fac_stellum_0;
+                /* now that we've done the long-range heating component, we only allow the momentum to couple over
+                 some distance to prevent bad approximations when the distance between points here is enormous */
+                double fac2 = 0; int kf_rt; for(kf_rt=0;kf_rt<N_RT_FREQ_BINS;kf_rt++) {fac2 += mass_stellarlum[kf_rt] * fac_stellum[kf_rt];}
+                fac *= fac2; acc_x += FLT(dx_stellarlum * fac); acc_y += FLT(dy_stellarlum * fac); acc_z += FLT(dz_stellarlum * fac);
+#endif
+            } // closes if(valid_gas_particle_for_rt)
+#endif // RT_USE_GRAVTREE
             
             
 #ifdef DM_SCALARFIELD_SCREENING
@@ -2023,6 +2283,9 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
         P[target].GravAccel[0] = acc_x;
         P[target].GravAccel[1] = acc_y;
         P[target].GravAccel[2] = acc_z;
+#ifdef RT_OTVET
+        if(valid_gas_particle_for_rt) {int k,k_et; for(k=0;k<N_RT_FREQ_BINS;k++) for(k_et=0;k_et<6;k_et++) {SphP[target].ET[k][k_et] = RT_ET[k][k_et];}} else {if(P[target].Type==0) {int k,k_et; for(k=0;k<N_RT_FREQ_BINS;k++) for(k_et=0;k_et<6;k_et++) {SphP[target].ET[k][k_et]=0;}}}
+#endif
 #ifdef EVALPOTENTIAL
         P[target].Potential = pot;
 #endif
@@ -2038,6 +2301,9 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
         GravDataResult[target].Acc[0] = acc_x;
         GravDataResult[target].Acc[1] = acc_y;
         GravDataResult[target].Acc[2] = acc_z;
+#ifdef RT_OTVET
+        int k,k_et; for(k=0;k<N_RT_FREQ_BINS;k++) for(k_et=0;k_et<6;k_et++) {GravDataResult[target].ET[k][k_et] = RT_ET[k][k_et];}
+#endif
 #ifdef EVALPOTENTIAL
         GravDataResult[target].Potential = pot;
 #endif
@@ -2702,7 +2968,7 @@ int force_treeevaluate_potential(int target, int mode, int *nexport, int *nsend_
                 {
                     
                     /* force node to open if we are within the gravitational softening length */
-#if defined(SELFGRAVITY_OFF) || defined(FLAG_NOT_IN_PUBLIC_CODE) || (!(defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)))
+#if defined(SELFGRAVITY_OFF) || defined(RT_SELFGRAVITY_OFF) || (!(defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)))
                     double soft = All.ForceSoftening[ptype];
 #endif
                     if((r2 < (soft+0.6*nop->len)*(soft+0.6*nop->len)) || (r2 < (nop->maxsoft+0.6*nop->len)*(nop->maxsoft+0.6*nop->len)))
