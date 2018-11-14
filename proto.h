@@ -521,7 +521,7 @@ char *GetMultiSpeciesFilename(int i, int hk);
 #endif
 
 #if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
-double bh_angleweight_localcoupling(int j, double hR, double theta);
+double bh_angleweight_localcoupling(int j, double hR, double theta, double r, double H_bh);
 #endif
 
 #if defined(GALSF_SUBGRID_WINDS)
