@@ -397,8 +397,9 @@ integertime get_timestep(int p,		/*!< particle index */
         *aphys = ac;
         return flag;
     }
-    
+
     dt = sqrt(2 * All.ErrTolIntAccuracy * All.cf_atime * KERNEL_CORE_SIZE * All.ForceSoftening[P[p].Type] / ac);
+
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
     dt = sqrt(2 * All.ErrTolIntAccuracy * All.cf_atime  * KERNEL_CORE_SIZE * DMAX(PPP[p].AGS_Hsml,All.ForceSoftening[P[p].Type]) / ac);
 #endif
@@ -423,6 +424,19 @@ integertime get_timestep(int p,		/*!< particle index */
 #endif
             dt = sqrt(2 * All.ErrTolIntAccuracy * All.cf_atime  * KERNEL_CORE_SIZE * ags_h / ac);
         }
+    }
+#endif
+
+#ifdef TIDAL_TIMESTEP_CRITERION // tidal criterion obtains the same energy error in an optimally-softened Plummer sphere over ~100 crossing times as the Power 2003 criterion
+    double dt_tidal = 0.; for(int k=0; k<3; k++) {dt_tidal += P[p].tidal_tensorps[k][k]*P[p].tidal_tensorps[k][k];} // this is diagonalized already in the gravity loop
+    dt_tidal = sqrt(All.ErrTolIntAccuracy / sqrt(dt_tidal));
+    dt = DMIN(All.MaxSizeTimestep, dt_tidal);
+#endif
+#ifdef SINGLE_STAR_TIMESTEPPING // this ensures that binaries advance in lock-step, which gives superior conservation
+    if(P[p].Type == 5)
+    {
+        double omega_binary = 1./P[p].min_bh_approach_time + 1./P[p].min_bh_freefall_time; // timestep is harmonic mean of freefall and approach time
+        dt = DMIN(dt, sqrt(All.ErrTolIntAccuracy)/omega_binary);
     }
 #endif
 
@@ -659,7 +673,8 @@ integertime get_timestep(int p,		/*!< particle index */
                 dt_divv = 1.5 / fabs(All.cf_a2inv * divVel);
                 if(dt_divv < dt) {dt = dt_divv;}
             }
-            
+	    
+	    
             
             
 #ifdef SUPER_TIMESTEP_DIFFUSION
@@ -757,7 +772,11 @@ integertime get_timestep(int p,		/*!< particle index */
 #ifdef BLACK_HOLES
     if(P[p].Type == 5)
     {
-        double dt_accr = 1.e-2 * 4.2e7 * SEC_PER_YEAR / All.UnitTime_in_s;
+#ifndef SINGLE_STAR_FORMATION
+      double dt_accr = 1.e-2 * 4.2e7 * SEC_PER_YEAR / All.UnitTime_in_s; // this is the Eddington timescale; not relevant for low radiative efficiency
+#else
+      double dt_accr = All.MaxSizeTimestep;
+#endif      
         if(BPP(p).BH_Mdot > 0 && BPP(p).BH_Mass > 0)
         {
 #if defined(BH_GRAVCAPTURE_GAS) || defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK)
@@ -781,10 +800,25 @@ integertime get_timestep(int p,		/*!< particle index */
             if(dt_accr > dt_evol) {dt_accr=dt_evol;}
 #endif
             if(dt_accr > 0 && dt_accr < dt) {dt = dt_accr;}
-        
+
         double dt_ngbs = (BPP(p).BH_TimeBinGasNeighbor ? (1 << BPP(p).BH_TimeBinGasNeighbor) : 0) * All.Timebase_interval / All.cf_hubble_a;
-        if(dt > dt_ngbs && dt_ngbs > 0) {dt = 1.01 * dt_ngbs;}
-        
+
+        if(dt > dt_ngbs && dt_ngbs > 0) {dt = 1.01 * dt_ngbs; }
+#ifdef SINGLE_STAR_FORMATION
+	if(P[p].DensAroundStar) {double eps = BPP(p).Hsml * KERNEL_CORE_SIZE; //BPP(p).BH_NearestGasNeighbor; //DMAX(BPP(p).BH_NearestGasNeighbor, All.ForceSoftening[5]);
+	double dt_gas = sqrt(All.ErrTolIntAccuracy * All.cf_atime * eps * eps * eps/ All.G / P[p].Mass); // fraction of the freefall time of the nearest gas particle from rest
+	if(dt > dt_gas && dt_gas > 0) {dt = 1.01 * dt_gas; }}
+
+	/* if (All.TotBHs > 1) { */
+	/*     eps = DMAX(All.ForceSoftening[5], P[p].min_dist_to_bh); //{ eps = DMIN(P[p].Hsml, );} // length-scale for acceleration timestep criterion ~(R/a)^0.5 */
+
+        /*     double dt_stars = sqrt(All.ErrTolIntAccuracy * eps / ac); // the constant factor was found to be necessary to avoid large energy errors when a binary pairs up... */
+        /*     if(dt > dt_stars && dt_stars > 0) {dt = 1.01 * dt_stars;} */
+
+	/* } */
+	//	double dt_stars =  sqrt(2*All.ErrTolIntAccuracy) * P[p].min_bh_tff;
+	//	if(dt > dt_stars && dt_stars > 0) {dt = 1.01 * dt_stars;}
+#endif
     } // if(P[p].Type == 5)
 #endif // BLACK_HOLES
     

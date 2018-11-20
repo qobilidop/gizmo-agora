@@ -680,6 +680,15 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             break;
 
         case IO_COSMICRAY_ALFVEN:    /* energy in the resonant (~gyro-radii) Alfven modes field, in the +/- (with respect to B) fields  */
+#ifdef COSMIC_RAYS_ALFVEN
+            for(n = 0; n < pc; pindex++)
+                if(P[pindex].Type == type)
+                {
+                    for(k = 0; k < 2; k++)
+                        *fp++ = SphP[pindex].CosmicRayAlfvenEnergyPred[k];
+                    n++;
+                }
+#endif
             break;
 
             
@@ -2185,7 +2194,11 @@ int blockpresent(enum iofields blocknr)
             break;
 
         case IO_COSMICRAY_ALFVEN:
+#ifdef COSMIC_RAYS_ALFVEN
+            return 1;
+#else
             return 0;
+#endif
             break;
 
             

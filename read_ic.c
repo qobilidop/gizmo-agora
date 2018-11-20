@@ -519,6 +519,10 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
             break;
 
         case IO_COSMICRAY_ALFVEN:
+#ifdef COSMIC_RAYS_ALFVEN
+            for(n = 0; n < pc; n++)
+                for(k = 0; k < 2; k++) {SphP[offset + n].CosmicRayAlfvenEnergy[k] = *fp++;}
+#endif
             break;
 
         case IO_OSTAR:

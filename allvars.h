@@ -209,10 +209,23 @@
 #endif
 
 
+#ifdef GRAVITY_IMPROVED_INTEGRATION
+#define GRAVITY_HYBRID_OPENING_CRIT // use both Barnes-Hut + relative tree opening criterion
+#define STOP_WHEN_BELOW_MINTIMESTEP // stop when below min timestep to prevent bad timestepping
+#define TIDAL_TIMESTEP_CRITERION // use tidal tensor timestep criterion
+#endif
+
 
 #ifdef SINGLE_STAR_FORMATION
+#define DEVELOPER_MODE
+#define GRAVITY_HYBRID_OPENING_CRIT // use both Barnes-Hut + relative tree opening criterion
+#define STOP_WHEN_BELOW_MINTIMESTEP // stop when below min timestep to prevent bad timestepping
+#define TIDAL_TIMESTEP_CRITERION // use tidal tensor timestep criterion
+#define SINGLE_STAR_TIMESTEPPING // use additional timestep criteria for sink particles to ensure they don't evolve out-of-binary in close encounters
+#define SINGLE_STAR_HILL_CRITERION // use Hill-type tidal-tensor star formation criterion
+#define SINGLE_STAR_STRICT_ACCRETION // use Bate 1995 angular momentum criterion for star formation, along with dynamically-evolved sink radius for apocentric distance threshold
 #define GALSF // master switch needed to enable various frameworks
-#define GALSF_SFR_VIRIAL_SF_CRITERION 3 // only allow star formation in virialized sub-regions meeting Jeans threshold
+#define GALSF_SFR_VIRIAL_SF_CRITERION 4 // only allow star formation in virialized sub-regions meeting Jeans threshold + converging all 3 axes
 #define METALS  // metals should be active for stellar return
 #define BLACK_HOLES // need to have black holes active since these are our sink particles
 #define GALSF_SFR_IMF_VARIATION // save extra information about sinks when they form
@@ -1827,7 +1840,10 @@ extern ALIGN(32) struct particle_data
     MyFloat PM_Potential;
 #endif
 #endif
-    
+#if defined(SINGLE_STAR_HILL_CRITERION) || defined(TIDAL_TIMESTEP_CRITERION) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#define COMPUTE_TIDAL_TENSOR_IN_GRAVTREE
+    double tidal_tensorps[3][3];                        /*!< tidal tensor (=second derivatives of grav. potential) */
+#endif
     
     
 #ifdef GALSF
@@ -1883,11 +1899,17 @@ extern ALIGN(32) struct particle_data
     int BH_CountProgs;
 #endif
     MyFloat BH_Mass;
+#ifdef SINGLE_STAR_STRICT_ACCRETION
+    MyFloat SinkRadius;
+#endif 
 #ifdef BH_ALPHADISK_ACCRETION
     MyFloat BH_Mass_AlphaDisk;
 #endif
     MyFloat BH_Mdot;
     int BH_TimeBinGasNeighbor;
+#ifdef SINGLE_STAR_FORMATION
+    MyFloat BH_NearestGasNeighbor;
+#endif
 #if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
     MyFloat BH_disk_hr;
 #endif
@@ -1900,6 +1922,11 @@ extern ALIGN(32) struct particle_data
 #ifdef BH_CALC_DISTANCES
     MyFloat min_dist_to_bh;
     MyFloat min_xyz_to_bh[3];
+#ifdef SINGLE_STAR_TIMESTEPPING
+    MyFloat min_bh_freefall_time;
+    MyFloat min_bh_periastron;
+    MyFloat min_bh_approach_time;
+#endif  
 #endif
     
     
@@ -2064,7 +2091,7 @@ extern struct sph_particle_data
 #endif
 #ifdef GALSF
   MyFloat Sfr;                      /*!< particle star formation rate */
-#if (GALSF_SFR_VIRIAL_SF_CRITERION==3)
+#if (GALSF_SFR_VIRIAL_SF_CRITERION>=3)
   MyFloat AlphaVirial_SF_TimeSmoothed;  /*!< dimensionless number > 0.5 if self-gravitating for smoothed virial criterion */
 #endif
 #endif
@@ -2274,6 +2301,9 @@ extern struct gravdata_in
 #if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     MyFloat Mass;
 #endif
+#ifdef SINGLE_STAR_TIMESTEPPING
+    MyFloat Vel[3];
+#endif  
     int Type;
 #if defined(RT_USE_GRAVTREE) || defined(ADAPTIVE_GRAVSOFT_FORALL) || defined(ADAPTIVE_GRAVSOFT_FORGAS)
     MyFloat Soft;
@@ -2297,9 +2327,17 @@ extern struct gravdata_out
 #ifdef EVALPOTENTIAL
     MyLongDouble Potential;
 #endif
+#ifdef COMPUTE_TIDAL_TENSOR_IN_GRAVTREE
+    MyLongDouble tidal_tensorps[3][3];
+#endif
 #ifdef BH_CALC_DISTANCES
     MyFloat min_dist_to_bh;
     MyFloat min_xyz_to_bh[3];
+#ifdef SINGLE_STAR_TIMESTEPPING
+    MyFloat min_bh_freefall_time;    // minimum value of sqrt(R^3 / G(M_BH + M_particle)) as calculated from the tree-walk
+    MyFloat min_bh_approach_time; // smallest approach time t_a = |v_radial|/r
+    MyFloat min_bh_periastron; // closest anticipated periastron passage
+#endif  
 #endif
 }
  *GravDataResult,		/*!< holds the partial results computed for imported particles. Note: We use GravDataResult = GravDataGet, such that the result replaces the imported data */
@@ -2645,8 +2683,12 @@ extern ALIGN(32) struct NODE
 
 
 #ifdef BH_CALC_DISTANCES
-    MyFloat bh_mass;      /*!< holds the BH mass in the node.  Used for calculating tree based dist to closest bh */
-    MyFloat bh_pos[3];    /*!< holds the mass-weighted position of the the actual black holes within the node */
+  MyFloat bh_mass;      /*!< holds the BH mass in the node.  Used for calculating tree based dist to closest bh */
+  MyFloat bh_pos[3];    /*!< holds the mass-weighted position of the the actual black holes within the node */
+#ifdef SINGLE_STAR_TIMESTEPPING
+  MyFloat bh_vel[3];    /*!< holds the mass-weighted avg. velocity of black holes in the node */
+  int N_BH;
+#endif  
 #endif
     
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
