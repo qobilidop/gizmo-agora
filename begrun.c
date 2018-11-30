@@ -628,7 +628,6 @@ void open_outputfiles(void)
 #endif
 
 
-
 #ifdef GALSF
   sprintf(buf, "%s%s", All.OutputDir, "sfr.txt");
   if(!(FdSfr = fopen(buf, mode)))

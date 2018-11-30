@@ -30,7 +30,7 @@
         + [Conduction & Viscosity] (#config-fluids-navierstokes)
         + [Radiative Cooling] (#config-fluids-cooling)
         + [Passive Scalars, Metals, & Sub-Grid Turbulent Mixing] (#config-fluids-metalsturb)
-        + [Dust-Gas Mixtures] (#config-fluids-dust)
+        + [Dust-Gas (Particulate) Mixtures] (#config-fluids-dust)
         + [Cosmic Rays] (#config-fluids-cosmicrays)
     + [Turbulent 'Stirring' (Large Eddy Simulations)] (#config-turb)
     + [Gravity & Cosmological Integrations] (#config-gravity)
@@ -97,6 +97,7 @@
     + [Self-Gravity & Cosmological Tests](#tests-grav) (e.g. [Evrard collapse](#tests-grav-evrard), [Zeldovich pancakes](#tests-grav-zeldovich), ['Santa Barbara Cluster'](#tests-grav-sbcluster), [galactic disks](#tests-grav-galdisk))
     + [Magneto-Hydrodynamics Tests](#tests-mhd) (e.g. waves, shocktubes, field-loops, current sheets, Orszag-Tang vortex, rotors, MRI, jets, MHD-mixing/gravity)
     + [Elasto-Dynamics Tests](#tests-elastic) (e.g. bouncing rubber cylinders)
+    + [Dust/Particulate-Dynamics Tests](#tests-dust) (e.g. [uniform dust-gas acceleration](#tests-dust-dustybox), [damped two-fluid waves](#tests-dust-dustywave))
 12. [Useful Additional Resources](#faqs)
     + [Visualization, Radiative Transfer, and Plotting](#faqs-vis)
     + [Halo/Group-Finding and Structure Identification](#faqs-halofinders)
@@ -925,7 +926,7 @@ These options set different fluid physics. This includes changing the equation o
 # ------------------------------  Users should cite: Hopkins & Lee 2016, MNRAS, 456, 4174, and Lee, Hopkins, & Squire 2017, MNRAS, 469, 3532, for the numerical methods
 #GRAIN_FLUID                    # aerodynamically-coupled grains (particle type 3 are grains); default is Epstein drag
 #GRAIN_EPSTEIN_STOKES=1         # uses the cross section for molecular hydrogen (times this number) to calculate Epstein-Stokes drag (will use calculate which applies and use appropriate value); if used with GRAIN_LORENTZFORCE, will also compute Coulomb drag
-#GRAIN_BACKREACTION             # account for momentum of grains pushing back on gas (from drag terms)
+#GRAIN_BACKREACTION             # account for momentum of grains pushing back on gas (from drag terms); users should cite Moseley et al., 2018, arXiv:1810.08214.
 #GRAIN_LORENTZFORCE             # charged grains feel Lorentz forces (requires MAGNETIC); if used with GRAIN_EPSTEIN_STOKES flag, will also compute Coulomb drag
 #GRAIN_COLLISIONS               # model collisions between grains (super-particles; so this is stochastic)
 ##-----------------------------------------------------------------------------------------------------
@@ -935,7 +936,7 @@ These options set different fluid physics. This includes changing the equation o
 
 **GRAIN\_EPSTEIN\_STOKES**: Uses the physical units of the code (and specified grain parameters) to calculate whether or not grains are actually in the Epstein (size smaller than gas mean free path) or Stokes regime, and modifies the aerodynamic equations appropriately. This is important for very large grains or dense, hot systems, and for terrestrial systems. To determine the gas mean-free path, the cross-section for molecular hydrogen is assumed; however by setting GRAIN\_EPSTEIN to a value not equal to unity, this cross section is multiplied by that value. This is useful to represent different atmospheric compositions, for example. If this is set and GRAIN\_LORENTZFORCE is also active, it will also compute the Coulomb forces on the grains (because it can calculate grain charges); these will use a simple approximation for the ionization state of the gas (needed for the Coulomb drag term) based on its temperature, unless COOLING is also active in which case this is done self-consistently. 
 
-**GRAIN\_BACKREACTION**: Explicitly account for the momentum deposited into the grain population (modify the gas momentum appropriately). This requires specifying the absolute dust-to-gas ratio and other physical parameters -- that is done in the initial conditions (when the actual masses of dust 'super-particles' is assigned), although it can easily be done in the `init.c` file as well (hard-coding some dust-to-gas ratio). In either case, the dust super-particle masses define the total mass of dust, which in turn determines the strength of its force on the gas (if this is dis-abled, the total mass in dust in the system has no dynamical effect). This module is currently being tested, but should appear shortly in a methods and initial results paper (Moseley et al., 2018).
+**GRAIN\_BACKREACTION**: Explicitly account for the momentum deposited into the grain population (modify the gas momentum appropriately). This requires specifying the absolute dust-to-gas ratio and other physical parameters -- that is done in the initial conditions (when the actual masses of dust 'super-particles' is assigned), although it can easily be done in the `init.c` file as well (hard-coding some dust-to-gas ratio). In either case, the dust super-particle masses define the total mass of dust, which in turn determines the strength of its force on the gas (if this is dis-abled, the total mass in dust in the system has no dynamical effect). This module is now public: users should cite Moseley et al., 2018, arXiv:1810.08214.
 
 **GRAIN\_LORENTZFORCE**: Explicitly account for the Lorentz forces on grains (integrated efficiently with a semi-implicit Boris integrator scheme that can accurately preserve gyro orbits, even with numerical discretization errors). The grain charge is calculated self-consistently from grain sizes and densities and ambient gas conditions, assuming the grains obey local charge equilibrium (following Draine and Sutin 1987). Requires MAGNETIC be active. With GRAIN\_EPSTEIN\_STOKES turned on, this will also compute the electro-static (Coulomb) drag on the grains. See Lee, Hopkins, & Squire 2017, MNRAS, 469, 3532, for details and examples.
 
@@ -1327,18 +1328,18 @@ The numerical details and physics are described in great detail in Hopkins et al
 
     ############################################################################################################################
     ##-----------------------------------------------------------------------------------------------------
-    #-------------------------------------- Star formation with -individual- stars [sink particles]: from PFH [proprietary development with Mike Grudic and David Guszejnov; modules not to be used without authors permission]
+    #-------------------------------------- Star formation with -individual- stars [sink particles]: from PFH [proprietary development with Mike Grudic and David Guszejnov; modules not to be used without authors permission, though basic modules may be ok there is a lot of development happening here]
     ##-----------------------------------------------------------------------------------------------------
     #SINGLE_STAR_FORMATION          # master switch for single star formation model: sink particles representing -individual- stars
     #SINGLE_STAR_ACCRETION=3        # proto-stellar accretion: 0=grav capture only; 1+=alpha-disk accretion onto protostar; 2+=bondi accretion of diffuse gas; 3+=sub-grid variability 
     #SINGLE_STAR_FB_HEATING         # proto-stellar heating: luminosity determined by BlackHoleRadiativeEfficiency (typical ~5e-7)
-    #SINGLE_STAR_FB_JETS            # protostellar jets: outflow rate+velocity set by BAL_f_accretion+BAL_v_outflow
+    #SINGLE_STAR_FB_JETS            # protostellar jets: outflow rate+velocity set by BAL_f_accretion+BAL_v_outflow. cite Angles-Alcazar et al., 2017, MNRAS, 464, 2840 (for algorithm, developed for black hole jets)
     #SINGLE_STAR_PROMOTION          # proto-stars become ZAMS stars at end of pre-main sequence lifetime. FIRE feedback modules kick in, but using appropriate luminosities and temperatures for each
     ############################################################################################################################
 
 This set of flags controls *single* star formation physics. This means individual stars are mass-resolved sink particles, with individual masses and evolutionary tracks (as opposed to the 'GALSF' suite of options described above, where the star formation is galaxy or cluster-scale or larger, and star particles represent an ensemble of stars). This is relevant for simulations of star clusters with resolved individual stars, simulations of the origins of the stellar initial mass function, or individual protostar/planet formation simulations. 
 
-This is all under active development by PFH, and remains proprietary (primarily because parts of these modules are still in very active development and not debugged, while other parts are production-ready). Please consult and request permission before using any piece of this code (and expect to be recruited info refining the modules in need of de-bugging).
+This is all under active development by PFH, and remains proprietary (primarily because parts of these modules are still in very active development and not debugged, while other parts are production-ready). Please consult and request permission before using any piece of this code (and expect to be recruited info refining the modules in need of de-bugging). Many of the pieces (e.g. the basic modules to enable sink particles) are fine to use and generally permission is not an issue, but some of the more subtle aspects of this and other modules are very much in-flux.
 
 **SINGLE\_STAR\_FORMATION**: Master switch. Must be on for any of the other modules within this block to work. With this enabled, star (sink) particles are spawned according to the same basic requirements that appear in the 'GALSF' block, using the same Parameterfile options: there is a minimum density (set in the parameterfile), but also the proto-sink region must be self-gravitating, Jeans unstable, self-shielding, the local gas density maximum within its neighbor kernel, have a converging velocity field, and not have another sink within the neighbor kernel. If these are all met, the gas particle is immediately converted into a star particle. Details of the modules are described in the `notes_singlestar` file ([here](http://www.tapir.caltech.edu/~phopkins/public/notes_singlestar.pdf) or in the downloads section of the Bitbucket site), until the methods paper is published.
 
@@ -3448,6 +3449,68 @@ In Config.sh, enable:
     
 The choice of `KERNEL_FUNCTION=5` is optional here. Experiment with different kernels, but be sure to set the parameter DesNumNgb accordingly; for e.g. `KERNEL_FUNCTION=3` (or 6), use 20, `KERNEL_FUNCTION=5` (or 7), use 40. SPH, for example, performs noticably better using the Wendland kernels on this test (while for MFM it makes a much smaller difference). The choice of hydro solver is also arbitrary -- however, recall that because of the material assumptions, the elasto-dynamics modules in the code are only designed to work with fixed-mass methods (MFM or SPH variants). 
 
+
+
+<a name="tests-dust"></a>
+## Dust-Gas / Particle-Laden Dynamics
+
+A number of different studies have now used the dust-particulate dynamics modules of the code (including e.g. Epstein or Stokes or Coulomb drag on dust or aerodynamic particles, Lorentz forces on charged grains, and more). With the release of some of the methods papers for this, the dust/particulate modules are public. I have therefore added some simple test problems for validation and to acquaint users with the modules. The initial conditions, example parameter files, and list of compile-time (Config.sh) flags which must be set to run each problem are publicly available at the same location as the rest of the files above. Users are encouraged to expand the set of tests and implementations of additional physics (e.g. collisions).
+
+
+<a name="tests-dust-dustybox"></a>
+### Uniform Acceleration-Deceleration of a Dusty Box
+
+This is a variant of the 'dustybox' test, a simple test problem which was popularized by Guillaume and Price, 2011, MNRAS, 418, 1491. We initialize a homogeneous periodic box of unit size, full of gas with an idealized adiabatic equation-of-state with unit density and sound speed and zero velocity, and uniform unit density of dust/particulates with initial velocity $v=1$ in some direction. The two are coupled via some drag law, which decelerates the dust while the 'backreaction' from the dust accelerates the gas, until the mixture reaches equilibrium with both components moving at $v=1/2$. If the drag coefficient ($=1/t_{s}$) is independent of the relative velocity of the mixture, then the exact solution is trivial, with the gas moving at $v_{g}=(1-\exp(-t/2 t_{s}))/2$ at all times $t$. 
+
+This is a simple test used to validate the 'backreaction' term and total momentum conservation. It can also be trivially run in any number of dimensions, or for any varied dust-to-gas ratio or drag coefficient. In the default dust implementation in the code, the default drag law is not a constant drag coefficient, but actually Epstein drag. This makes the exact solutions slightly more complicated, but it is still easy to solve for the difference between the dust and gas velocities $v_{d}-v_{g}=2\,\psi/(1-\alpha\,\psi^{2})$ where $\psi\equiv (1+\sqrt{1+\alpha})^{-1}\,\exp(-2\,t)$ and $\alpha=15\pi/128$, for the default parameters here.
+
+Initial conditions: "dustybox\_ics.hdf5"
+
+Parameterfile: "dustboxwave.params" 
+(Be sure in the parameterfile to choose the correct initial condition file)
+
+In Config.sh, enable: 
+
+    BOX_PERIODIC
+    BOX_SPATIAL_DIMENSION=1
+    SELFGRAVITY_OFF
+    GRAIN_FLUID
+    GRAIN_BACKREACTION
+    EOS_GAMMA=(5./3.)
+    EOS_ENFORCE_ADIABAT=(3./5.)
+    
+The default test is 1D just for simplicity. You can trivially make a 2D or 3D test initializing a box with the included IC-making python script in GIZMO. Feel free to vary the equation of state of the gas, drag coefficient (varying `Grain_Size_Min` and `Grain_Size_Max` in the code - these are equal so all grains have the same size), or dust-to-gas ratio (mass of grains in the ICs). You can even manually edit the code lines in `grain_physics.c` to insert different drag laws. 
+
+
+<a name="tests-dust-dustywave"></a>
+### A Damped, Two-Fluid (Coupled Dust/Particulate-Gas) Wave
+
+This is a variant of the 'dustwave' test from Guillaume and Price, 2011, MNRAS, 418, 1491. This uses the same setup and nearly-identical ICs to the 'dustybox' test. In fact the parameterfile is identical, you just need to swap out the IC file. 
+
+The difference is, instead of initializing the dust with a bulk velocity, we initialize a periodic linear wave in the dust and gas, with amplitude of $\sim 10^{-4}$ in code units. In the strictly-linear regime, it is straightforward (but tedious) to solve for the eigenfunctions of these waves, for a given dust-to-gas ratio, mean drag coefficient, functional form of the drag law, dust-to-gas ratio, etc. However, particularly for the Epstein drag case adopted here, the functions do not have clean closed-form expressions. So instead we provide a table with an exact numerically-tabulated solution for the default setup here.
+
+This is a much more sensitive test of the dust-gas coupling and back-reaction terms. Like the test above, it can be run in any number of dimensions, or any drag law or dust-to-gas-ratio or coupling coefficient. Because the flow is smooth, it can be used to test numerical convergence rates. Because the wave amplitude is weak ($\sim 10^{-4}$), even very small errors will corrupt its evolution. And the propagation of the wave in both dust and gas depends sensitively on accurate back-and-forth coupling between the two media.
+
+Note that in this particular problem, with zero forces on dust or gas and a homogeneous background, the waves are always damped. But as shown in Squire and Hopkins 2018, ApJL, 856, L15 (arXiv:1706.05020), if there is *any* difference in non-drag forces acting on the dust and gas (e.g. if we introduce an external force which acts even slightly differently on the dust and/or the gas, or a pressure gradient in the gas, or Lorentz forces on the dust), the system becomes unstable to a family of 'resonant drag instabilities' which rapidly amplify into strongly non-linear behavior of the dust and gas. This test problem can be used as a starting point to explore these instabilities as well.
+
+Initial conditions: "dustywave\_ics.hdf5"
+
+Parameterfile: "dustboxwave.params"
+(Be sure in the parameterfile to choose the correct initial condition file)
+
+In Config.sh, enable: 
+
+    BOX_PERIODIC
+    BOX_SPATIAL_DIMENSION=1
+    SELFGRAVITY_OFF
+    GRAIN_FLUID
+    GRAIN_BACKREACTION
+    EOS_GAMMA=(5./3.)
+    EOS_ENFORCE_ADIABAT=(3./5.)
+    
+The default test is 1D just for simplicity. You can trivially make a 2D or 3D test initializing a box with the included IC-making python script in GIZMO. Feel free to vary the equation of state of the gas, drag coefficient (varying `Grain_Size_Min` and `Grain_Size_Max` in the code - these are equal so all grains have the same size), or dust-to-gas ratio (mass of grains in the ICs). You can even manually edit the code lines in `grain_physics.c` to insert different drag laws. 
+
+The exact solutions for the default setup are provided in the file "dustwave\_exact.txt". This gives the solution for the default parameterfile values, at time =1.2 (in code units). The three columns are: (1) x-coordinate position, (2) value of x-velocity of dust, (3) value of x-velocity of gas.
 
 ***
 

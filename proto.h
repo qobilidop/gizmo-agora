@@ -486,6 +486,12 @@ double mechanical_fb_calculate_eventrates(int i, double dt);
 
 #ifdef GRAIN_FLUID
 void apply_grain_dragforce(void);
+#ifdef GRAIN_COLLISIONS
+void grain_collisions(void);
+void grain_density(void);
+int grain_density_evaluate(int target, int mode, int *nexport, int *nsend_local);
+int grain_density_isactive(int n);
+#endif
 #endif
 
 #if defined(FLAG_NOT_IN_PUBLIC_CODE) || (defined(RT_CHEM_PHOTOION) && defined(GALSF))
@@ -698,7 +704,6 @@ void rt_write_chemistry_stats(void);
 
 
 void find_block(char *label,FILE *fd);
-
 
 
 int ags_gravity_kernel_shared_BITFLAG(short int particle_type_primary);

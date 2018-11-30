@@ -338,7 +338,6 @@ void compute_statistics(void)
 #ifndef IO_REDUCED_MODE
         energy_statistics();	/* compute and output energy statistics */
 #endif
-        
         All.TimeLastStatistics += All.TimeBetStatistics;
     }
 }

@@ -109,7 +109,6 @@ void init(void)
     set_cosmo_factors_for_current_time();
     
     
-    
 #ifdef COOLING
     IonizeParams();
 #endif
@@ -313,6 +312,12 @@ void init(void)
 #endif
 
             P[i].Gas_Density = P[i].Gas_InternalEnergy = P[i].Gas_Velocity[0]=P[i].Gas_Velocity[1]=P[i].Gas_Velocity[2]=0;
+#ifdef GRAIN_BACKREACTION
+            P[i].Grain_DeltaMomentum[0]=P[i].Grain_DeltaMomentum[1]=P[i].Grain_DeltaMomentum[2]=0;
+#endif
+#ifdef GRAIN_COLLISIONS
+            P[i].Grain_Density=P[i].Grain_Velocity[0]=P[i].Grain_Velocity[1]=P[i].Grain_Velocity[2]=0;
+#endif
 #ifdef GRAIN_LORENTZFORCE
             P[i].Gas_B[0]=P[i].Gas_B[1]=P[i].Gas_B[2]=0;
 #endif

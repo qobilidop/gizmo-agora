@@ -244,6 +244,10 @@
 #endif
 #define BH_CALC_DISTANCES // calculate distance to nearest sink in gravity tree
 //#GALSF_SFR_IMF_VARIATION         # determines the stellar IMF for each particle from the Guszejnov/Hopkins/Hennebelle/Chabrier/Padoan theory
+#ifdef SINGLE_STAR_FB_JETS
+//#define BH_WIND_CONTINUOUS 0
+#define BH_WIND_KICK -1 // use kinetic feedback module for protostellar jets (for this, use the simple kicking module, it's not worth the expense of the other)
+#endif
 // if not using grackle modules, need to make sure appropriate cooling is enabled
 #if defined(COOLING) && !defined(COOL_GRACKLE)
 #ifndef COOL_LOW_TEMPERATURES
@@ -1271,7 +1275,6 @@ extern FILE
 #endif
  *FdCPU;        /*!< file handle for cpu.txt log-file. */
 
-
 #ifdef GALSF
 extern FILE *FdSfr;		/*!< file handle for sfr.txt log-file. */
 #endif
@@ -1884,8 +1887,15 @@ extern ALIGN(32) struct particle_data
     MyFloat Gas_Density;
     MyFloat Gas_InternalEnergy;
     MyFloat Gas_Velocity[3];
+#ifdef GRAIN_BACKREACTION
+    MyFloat Grain_DeltaMomentum[3];
+#endif
 #ifdef GRAIN_LORENTZFORCE
     MyFloat Gas_B[3];
+#endif
+#ifdef GRAIN_COLLISIONS
+    MyFloat Grain_Density;
+    MyFloat Grain_Velocity[3];
 #endif
 #endif
     
@@ -1941,7 +1951,6 @@ extern ALIGN(32) struct particle_data
 #ifdef WAKEUP
     int dt_step;
 #endif
-    
     
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
     MyDouble AGS_Hsml;          /*!< smoothing length (for gravitational forces) */

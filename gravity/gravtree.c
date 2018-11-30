@@ -528,10 +528,7 @@ void gravity_tree(void)
             while(ndone < NTask);
         }			/* Ewald_iter */
         
-    
-    
-    
-    
+
     
     myfree(DataNodeList);
     myfree(DataIndexTable);
@@ -725,7 +722,7 @@ void gravity_tree(void)
     
     
     
-    
+   
     
 #ifdef RT_SELFGRAVITY_OFF
     /* if this is set, we zero out gravity here, just after computing it! */

@@ -114,11 +114,12 @@
 # --------------------------------------- Aerodynamic Particles
 # ----------------------------- This is developed by P. Hopkins, who requests that you inform him of planned projects with these modules
 # ------------------------------  because he is supervising several students using them as well, and there are some components still in active development.
-# ------------------------------  Users should cite: Hopkins & Lee 2016, MNRAS, 456, 4174, and Lee, Hopkins, & Squire 2017, MNRAS, 469, 3532, for the numerical methods
+# ------------------------------  Users should cite: Hopkins & Lee 2016, MNRAS, 456, 4174, and Lee, Hopkins, & Squire 2017, MNRAS, 469, 3532, for the numerical methods (plus other papers cited below)
 #GRAIN_FLUID                    # aerodynamically-coupled grains (particle type 3 are grains); default is Epstein drag
 #GRAIN_EPSTEIN_STOKES=1         # uses the cross section for molecular hydrogen (times this number) to calculate Epstein-Stokes drag (will use calculate which applies and use appropriate value); if used with GRAIN_LORENTZFORCE, will also compute Coulomb drag
-#GRAIN_BACKREACTION             # account for momentum of grains pushing back on gas (from drag terms)
+#GRAIN_BACKREACTION             # account for momentum of grains pushing back on gas (from drag terms); users should cite Moseley et al., 2018, arXiv:1810.08214.
 #GRAIN_LORENTZFORCE             # charged grains feel Lorentz forces (requires MAGNETIC); if used with GRAIN_EPSTEIN_STOKES flag, will also compute Coulomb drag (grain charges self-consistently computed from gas properties)
+#GRAIN_COLLISIONS               # model collisions between grains (super-particles; so this is stochastic) - framework is in place, but users need to implement specific physical models for collisions
 ## ----------------------------------------------------------------------------------------------------
 ## ----------------------------------------------------------------------------------------------------
 ####################################################################################################
@@ -224,10 +225,11 @@
 
 ############################################################################################################################
 ## ----------------------------------------------------------------------------------------------------
-# ------------------------------------- Star formation with -individual- stars [sink particles]: from PFH [proprietary development with Mike Grudic and David Guszejnov; modules not to be used without authors permission]
+# ------------------------------------- Star formation with -individual- stars [sink particles]: from PFH [proprietary development with Mike Grudic and David Guszejnov; modules not to be used without authors permission, though basic modules may be ok there is a lot of development happening here]
 ## ----------------------------------------------------------------------------------------------------
 #SINGLE_STAR_FORMATION          # master switch for single star formation model: sink particles representing -individual- stars
 #SINGLE_STAR_ACCRETION=0        # proto-stellar accretion: 0=grav capture only; 1+=alpha-disk accretion onto protostar; 2+=bondi accretion of diffuse gas; 3+=sub-grid variability
+#SINGLE_STAR_FB_JETS            # protostellar jets: outflow rate+velocity set by BAL_f_accretion+BAL_v_outflow. cite Angles-Alcazar et al., 2017, MNRAS, 464, 2840 (for algorithm, developed for black hole jets)
 ############################################################################################################################
 
 
