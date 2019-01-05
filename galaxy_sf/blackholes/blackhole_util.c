@@ -121,6 +121,9 @@ void blackhole_end(void)
         fflush(FdBlackHolesDetails);
 #ifdef BH_OUTPUT_MOREINFO
         fflush(FdBhMergerDetails);
+#ifdef BH_WIND_KICK
+        fflush(FdBhWindDetails);
+#endif
 #endif
 #endif
     }
@@ -155,7 +158,13 @@ void out2particle_blackhole(struct blackhole_temp_particle_data *out, int target
         if(out->DF_mmax_particles > BlackholeTempInfo[target].DF_mmax_particles)
             BlackholeTempInfo[target].DF_mmax_particles = out->DF_mmax_particles;
 #endif
-#if defined(BH_BONDI) || defined(BH_DRAG)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    for(k=0;k<3;k++)
+    {
+        ASSIGN_ADD(BlackholeTempInfo[target].GradRho_in_Kernel[k],out->GradRho_in_Kernel[k],mode);
+    }
+#endif
+#if defined(BH_BONDI) || defined(BH_DRAG) || (BH_GRAVACCRETION == 5)
     for(k=0;k<3;k++)
         ASSIGN_ADD(BlackholeTempInfo[target].BH_SurroundingGasVel[k],out->BH_SurroundingGasVel[k],mode);
 #endif

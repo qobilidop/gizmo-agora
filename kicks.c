@@ -287,7 +287,13 @@ void do_the_kick(int i, integertime tstart, integertime tend, integertime tcurre
 #ifdef TURB_DRIVING
                 dp[j] += mass_pred * SphP[i].TurbAccel[j] * dt_gravkick;
 #endif
+#ifdef RT_RAD_PRESSURE_OUTPUT
+                dp[j] += mass_pred * SphP[i].RadAccel[j] * All.cf_atime * dt_hydrokick;
+#endif
             }
+#ifdef SINKS_FEEL_NO_GRAVITY
+	    if(P[i].Type < 5)
+#endif
             dp[j] += mass_pred * P[i].GravAccel[j] * dt_gravkick;
             P[i].Vel[j] += dp[j] / mass_new; /* correctly accounts for mass change if its allowed */
         }
@@ -313,13 +319,13 @@ void do_the_kick(int i, integertime tstart, integertime tend, integertime tcurre
 #endif
             if(P[i].Pos[j] <= 0)
             {
-                if(P[i].Vel[j]<0) {P[i].Vel[j]=-P[i].Vel[j]; SphP[i].VelPred[j]=P[i].Vel[j]; SphP[i].HydroAccel[j]=0; dp[j]+=2*P[i].Vel[j]*mass_new;}
-                P[i].Pos[j]=(0+((double)P[i].ID)*1.e-6)*box_upper[j];
+                if(P[i].Vel[j]<0) {P[i].Vel[j]=-P[i].Vel[j]; if(P[i].Type==0) {SphP[i].VelPred[j]=P[i].Vel[j]; SphP[i].HydroAccel[j]=0;} dp[j]+=2*P[i].Vel[j]*mass_new;}
+                P[i].Pos[j]=(0.+((double)P[i].ID)*1.e-9)*box_upper[j];
             }
             if(P[i].Pos[j] >= box_upper[j])
             {
-                if(P[i].Vel[j]>0) {P[i].Vel[j]=-P[i].Vel[j]; SphP[i].VelPred[j]=P[i].Vel[j]; SphP[i].HydroAccel[j]=0; dp[j]+=2*P[i].Vel[j]*mass_new;}
-                P[i].Pos[j]=box_upper[j]*(1-((double)P[i].ID)*1.e-6);
+                if(P[i].Vel[j]>0) {P[i].Vel[j]=-P[i].Vel[j]; if(P[i].Type==0) {SphP[i].VelPred[j]=P[i].Vel[j]; SphP[i].HydroAccel[j]=0;} dp[j]+=2*P[i].Vel[j]*mass_new;}
+                P[i].Pos[j]=box_upper[j]*(1.-((double)P[i].ID)*1.e-9);
             }
         }
 #endif
@@ -370,8 +376,14 @@ void set_predicted_sph_quantities_for_extra_physics(int i)
         for(kf=0;kf<N_RT_FREQ_BINS;kf++)
         {
             SphP[i].E_gamma_Pred[kf] = SphP[i].E_gamma[kf];
+#if defined(RT_EVOLVE_FLUX)
+            for(k=0;k<3;k++) SphP[i].Flux_Pred[kf][k] = SphP[i].Flux[kf][k];
+#endif
         }
         rt_eddington_update_calculation(i);
+#endif
+#ifdef RT_EVOLVE_INTENSITIES
+        for(kf=0;kf<N_RT_FREQ_BINS;kf++) {for(k=0;k<N_RT_INTENSITY_BINS;k++) {SphP[i].Intensity_Pred[kf][k] = SphP[i].Intensity[kf][k];}}
 #endif
 
 #ifdef EOS_ELASTIC
@@ -458,6 +470,9 @@ void do_sph_kick_for_extra_physics(int i, integertime tstart, integertime tend, 
     
     
     
+#ifdef RADTRANSFER
+    rt_update_driftkick(i,dt_entr,0);
+#endif
 
 #ifdef EOS_ELASTIC
     elastic_body_update_driftkick(i,dt_entr,0);

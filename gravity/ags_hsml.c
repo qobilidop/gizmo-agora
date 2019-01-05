@@ -62,6 +62,10 @@ int ags_gravity_kernel_shared_BITFLAG(short int particle_type_primary)
         if((particle_type_primary == 4)||(particle_type_primary == 2)||(particle_type_primary == 3)) {return 29;} // 2^0+2^2+2^3+2^4
     }
 #endif
+#ifdef DM_SIDM
+    /* SIDM particles see other SIDM particles */
+    if((1 << particle_type_primary) & (DM_SIDM)) {return DM_SIDM;}
+#endif
     /* if we haven't been caught by one of the above checks, we simply return whether or not we see 'ourselves' */
     return (1 << particle_type_primary);
 #endif
@@ -958,7 +962,9 @@ double ags_return_maxsoft(int i)
 #endif
 #endif
 #ifdef BLACK_HOLES
+#ifndef SINGLE_STAR_FORMATION
     if(P[i].Type == 5) {maxsoft = All.BlackHoleMaxAccretionRadius  / All.cf_atime;}   // MaxAccretionRadius is now defined in params.txt in PHYSICAL units
+#endif
 #endif
     return maxsoft;
 }
@@ -1087,12 +1093,21 @@ struct AGSForce_data_in
     double NV_T[3][3];
     double V_i;
 #endif
+#ifdef DM_SIDM
+    int dt_step_sidm;
+    MyIDType ID;
+#endif
 }
 *AGSForce_DataIn, *AGSForce_DataGet;
 
 /* structure for variables which must be returned -from- the evaluation sub-routines */
 struct AGSForce_data_out
 {
+#ifdef DM_SIDM
+    double sidm_kick[3];
+    int dt_step_sidm;
+    int si_count;
+#endif
 }
 *AGSForce_DataResult, *AGSForce_DataOut;
 
@@ -1123,6 +1138,10 @@ static inline void particle2in_AGSForce(struct AGSForce_data_in *in, int i)
     in->V_i = get_particle_volume_ags(i);
     for(k=0;k<3;k++) {for(k2=0;k2<3;k2++) {in->NV_T[k][k2] = P[i].NV_T[k][k2];}}
 #endif
+#ifdef DM_SIDM
+    in->dt_step_sidm = P[i].dt_step_sidm;
+    in->ID = P[i].ID;
+#endif
 }
 
 #define ASSIGN_ADD_PRESET(x,y,mode) (mode == 0 ? (x=y) : (x+=y))
@@ -1134,6 +1153,11 @@ static inline void out2particle_AGSForce(struct AGSForce_data_out *out, int i, i
 static inline void out2particle_AGSForce(struct AGSForce_data_out *out, int i, int mode)
 {
     int k,k2; k=0; k2=0;
+#ifdef DM_SIDM
+    for(k=0;k<3;k++) {P[i].Vel[k] += out->sidm_kick[k];}
+    MIN_ADD(P[i].dt_step_sidm, out->dt_step_sidm, mode);
+    P[i].NInteractions += out->si_count;
+#endif
 
 }
 
@@ -1158,6 +1182,9 @@ void AGSForce_calc(void)
 
     /* before doing any operations, need to zero the appropriate memory so we can correctly do pair-wise operations */
     //for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i]) {if(P[i].Type==0) {memset(&AGSForce_DataPasser[i], 0, sizeof(struct temporary_data_topass));}}
+#ifdef DM_SIDM
+    for(i = FirstActiveParticle; i >= 0; i = NextActiveParticle[i]) {P[i].dt_step_sidm = 1.e10*P[i].dt_step;}
+#endif
 
     /* begin the main gradient loop */
     NextParticle = FirstActiveParticle;    /* begin with this index */
@@ -1383,6 +1410,9 @@ int AGSForce_evaluate(int target, int mode, int *exportflag, int *exportnodecoun
     kernel.h_i = local.AGS_Hsml;
     kernel_hinv(kernel.h_i, &kernel.hinv_i, &kernel.hinv3_i, &kernel.hinv4_i);
     int AGS_kernel_shared_BITFLAG = ags_gravity_kernel_shared_BITFLAG(local.Type); // determine allowed particle types for search for adaptive gravitational softening terms
+#ifdef DM_SIDM
+    out.dt_step_sidm = local.dt_step_sidm;
+#endif
 
     /* Now start the actual neighbor computation for this particle */
     if(mode == 0) {startnode = All.MaxPart; /* root node */} else {startnode = AGSForce_DataGet[target].NodeList[0]; startnode = Nodes[startnode].u.d.nextnode;    /* open it */}
@@ -1391,6 +1421,9 @@ int AGSForce_evaluate(int target, int mode, int *exportflag, int *exportnodecoun
         while(startnode >= 0)
         {
             double search_len = local.AGS_Hsml;
+#ifdef DM_SIDM
+            search_len *= 3.0; // need a 'buffer' because we will consider interactions with any kernel -overlap, not just inside one or the other kernel radius
+#endif
             numngb_inbox = ngb_treefind_pairs_threads_targeted(local.Pos, search_len, target, &startnode, mode, exportflag,
                                                                   exportnodecount, exportindex, ngblist, AGS_kernel_shared_BITFLAG);
             if(numngb_inbox < 0) {return -1;} /* no neighbors! */
@@ -1407,7 +1440,11 @@ int AGSForce_evaluate(int target, int mode, int *exportflag, int *exportnodecoun
                 if(r2 <= 0) continue;
                 kernel.r = sqrt(r2);
                 kernel.h_j = PPP[j].AGS_Hsml;
+#ifdef DM_SIDM
+                if(kernel.r > kernel.h_i+kernel.h_j) continue;
+#else
                 if(kernel.r > kernel.h_i && kernel.r > kernel.h_j) continue;
+#endif
                 /* calculate kernel quantities needed below */
                 kernel_hinv(kernel.h_j, &kernel.hinv_j, &kernel.hinv3_j, &kernel.hinv4_j);
                 u_i = kernel.r * kernel.hinv_i; u_j = kernel.r * kernel.hinv_j;
@@ -1419,6 +1456,9 @@ int AGSForce_evaluate(int target, int mode, int *exportflag, int *exportnodecoun
                     if(All.ComovingIntegrationOn) {kernel.dv[k] += All.cf_hubble_a * kernel.dp[k]/All.cf_a2inv;}
                 }
                 
+#ifdef DM_SIDM
+#include "../sidm/sidm_core_flux_computation.h"
+#endif
 
             } // numngb_inbox loop
         } // while(startnode)
@@ -1460,6 +1500,9 @@ void *AGSForce_evaluate_secondary(void *p)
 int AGSForce_isactive(int i)
 {
     if(P[i].TimeBin < 0) return 0; /* check our 'marker' for particles which have finished iterating to an Hsml solution (if they have, dont do them again) */
+#ifdef DM_SIDM
+    if((1 << P[i].Type) & (DM_SIDM)) return 1;
+#endif
     return 0; // default to no-action, need to affirm calculation above //
 }
 

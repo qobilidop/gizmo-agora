@@ -59,6 +59,9 @@ void force_kick_node(int i, MyDouble * dp)
   int j, no;
   MyFloat v, vmax;
 
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    MyFloat rt_source_lum_dp[3];
+#endif
 
 #ifdef DM_SCALARFIELD_SCREENING
   MyFloat dp_dm[3];
@@ -71,6 +74,11 @@ void force_kick_node(int i, MyDouble * dp)
 
   for(j = 0; j < 3; j++)
     {
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+        double lum[N_RT_FREQ_BINS];
+        int active_check = rt_get_source_luminosity(i,-1,lum);
+        if(active_check) {rt_source_lum_dp[j]=dp[j];} else {rt_source_lum_dp[j]=0;}
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
       if(P[i].Type != 0)
 	dp_dm[j] = dp[j];
@@ -92,6 +100,9 @@ void force_kick_node(int i, MyDouble * dp)
       for(j = 0; j < 3; j++)
 	{
 	  Extnodes[no].dp[j] += dp[j];
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+        Extnodes[no].rt_source_lum_dp[j] += rt_source_lum_dp[j];
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
 	  Extnodes[no].dp_dm[j] += dp_dm[j];
 #endif
@@ -129,6 +140,9 @@ void force_finish_kick_nodes(void)
   int *counts, *counts_dp, *offset_list, *offset_dp, *offset_vmax;
   MyLongDouble *domainDp_loc, *domainDp_all;
 
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    MyLongDouble *domainDp_stellarlum_loc, *domainDp_stellarlum_all;
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
   MyLongDouble *domainDp_dm_loc, *domainDp_dm_all;
 #endif
@@ -143,6 +157,9 @@ void force_finish_kick_nodes(void)
   offset_vmax = (int *) mymalloc("offset_vmax", sizeof(int) * NTask);
 
   domainDp_loc = (MyLongDouble *) mymalloc("domainDp_loc", DomainNumChanged * 3 * sizeof(MyLongDouble));
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    domainDp_stellarlum_loc = (MyLongDouble *) mymalloc("domainDp_stellarlum_loc", DomainNumChanged * 3 * sizeof(MyLongDouble));
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
   domainDp_dm_loc = (MyLongDouble *) mymalloc("domainDp_dm_loc", DomainNumChanged * 3 * sizeof(MyLongDouble));
 #endif
@@ -153,6 +170,9 @@ void force_finish_kick_nodes(void)
       for(j = 0; j < 3; j++)
 	{
 	  domainDp_loc[i * 3 + j] = Extnodes[DomainList[i]].dp[j];
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+        domainDp_stellarlum_loc[i * 3 + j] = Extnodes[DomainList[i]].rt_source_lum_dp[j];
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
 	  domainDp_dm_loc[i * 3 + j] = Extnodes[DomainList[i]].dp_dm[j];
 #endif
@@ -183,6 +203,9 @@ void force_finish_kick_nodes(void)
     }
 
   domainDp_all = (MyLongDouble *) mymalloc("domainDp_all", totDomainNumChanged * 3 * sizeof(MyLongDouble));
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    domainDp_stellarlum_all = (MyLongDouble *) mymalloc("domainDp_stellarlum_all", totDomainNumChanged * 3 * sizeof(MyLongDouble));
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
   domainDp_dm_all =
     (MyLongDouble *) mymalloc("domainDp_dm_all", totDomainNumChanged * 3 * sizeof(MyLongDouble));
@@ -204,6 +227,10 @@ void force_finish_kick_nodes(void)
   MPI_Allgatherv(domainDp_loc, DomainNumChanged * 3 * sizeof(MyLongDouble), MPI_BYTE,
 		 domainDp_all, counts_dp, offset_dp, MPI_BYTE, MPI_COMM_WORLD);
 
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    MPI_Allgatherv(domainDp_stellarlum_loc, DomainNumChanged * 3 * sizeof(MyLongDouble), MPI_BYTE,
+                   domainDp_stellarlum_all, counts_dp, offset_dp, MPI_BYTE, MPI_COMM_WORLD);
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
   MPI_Allgatherv(domainDp_dm_loc, DomainNumChanged * 3 * sizeof(MyLongDouble), MPI_BYTE,
 		 domainDp_dm_all, counts_dp, offset_dp, MPI_BYTE, MPI_COMM_WORLD);
@@ -228,6 +255,9 @@ void force_finish_kick_nodes(void)
 	  for(j = 0; j < 3; j++)
 	    {
 	      Extnodes[no].dp[j] += domainDp_all[3 * i + j];
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+            Extnodes[no].rt_source_lum_dp[j] += domainDp_stellarlum_all[3 * i + j];
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
 	      Extnodes[no].dp_dm[j] += domainDp_dm_all[3 * i + j];
 #endif
@@ -245,11 +275,17 @@ void force_finish_kick_nodes(void)
 
   myfree(domainList_all);
   myfree(domainVmax_all);
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    myfree(domainDp_stellarlum_all);
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
   myfree(domainDp_dm_all);
 #endif
   myfree(domainDp_all);
   myfree(domainVmax_loc);
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    myfree(domainDp_stellarlum_loc);
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
   myfree(domainDp_dm_loc);
 #endif
@@ -287,6 +323,11 @@ void force_drift_node(int no, int time1)
       else
 	fac = 0;
 
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+        double fac_stellar_lum;
+        double l_tot=0; for(j=0;j<N_RT_FREQ_BINS;j++) {l_tot += (Nodes[no].stellar_lum[j]);}
+        if(l_tot>0) {fac_stellar_lum = 1 / l_tot;} else {fac_stellar_lum = 0;}
+#endif
 
 #ifdef DM_SCALARFIELD_SCREENING
       double fac_dm;
@@ -301,6 +342,10 @@ void force_drift_node(int no, int time1)
 	{
 	  Extnodes[no].vs[j] += fac * FLT(Extnodes[no].dp[j]);
 	  Extnodes[no].dp[j] = 0;
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+        Extnodes[no].rt_source_lum_vs[j] += fac_stellar_lum * FLT(Extnodes[no].rt_source_lum_dp[j]);
+        Extnodes[no].rt_source_lum_dp[j] = 0;
+#endif
 #ifdef DM_SCALARFIELD_SCREENING
 	  Extnodes[no].vs_dm[j] += fac_dm * FLT(Extnodes[no].dp_dm[j]);
 	  Extnodes[no].dp_dm[j] = 0;
@@ -329,6 +374,9 @@ void force_drift_node(int no, int time1)
 #endif
 
 
+#ifdef RT_SEPARATELY_TRACK_LUMPOS
+    for(j = 0; j < 3; j++) {Nodes[no].rt_source_lum_s[j] += Extnodes[no].rt_source_lum_vs[j] * dt_drift;}
+#endif
     
   Extnodes[no].hmax *= exp(Extnodes[no].divVmax * dt_drift_hmax / NUMDIMS);
   Nodes[no].Ti_current = time1;

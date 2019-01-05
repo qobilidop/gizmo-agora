@@ -155,6 +155,9 @@ void begrun(void)
     init_turb();
 #endif
 
+#ifdef DM_SIDM
+    init_geofactor_table();
+#endif
 
   All.TimeLastRestartFile = CPUThisRun;
 
@@ -252,6 +255,9 @@ void begrun(void)
 #ifdef BLACK_HOLES
       All.BlackHoleMaxAccretionRadius = all.BlackHoleMaxAccretionRadius;
 #endif
+#ifdef RT_LEBRON
+        All.PhotonMomentum_Coupled_Fraction = all.PhotonMomentum_Coupled_Fraction;
+#endif
 
 #ifdef GR_TABULATED_COSMOLOGY
       All.DarkEnergyConstantW = all.DarkEnergyConstantW;
@@ -327,6 +333,18 @@ void begrun(void)
 #endif
 
 
+#ifdef RADTRANSFER
+#if defined(RT_EVOLVE_INTENSITIES)
+    rt_init_intensity_directions();
+#endif
+#if defined(RT_DIFFUSION_CG)
+    All.Radiation_Ti_begstep = 0;
+#endif
+#ifdef RT_CHEM_PHOTOION
+    rt_get_sigma();
+#endif
+    if(RestartFlag == 0) {rt_set_simple_inits();}
+#endif
 
     
   if(All.ComovingIntegrationOn)
@@ -493,6 +511,14 @@ void open_outputfiles(void)
       printf("error in opening file '%s'\n", buf);
       endrun(1);
     }
+#ifdef BH_WIND_KICK
+  sprintf(buf, "%sblackhole_details/bhwinds_%d.txt", All.OutputDir, ThisTask);
+  if(!(FdBhWindDetails = fopen(buf, mode)))
+    {
+      printf("error in opening file '%s'\n", buf);
+      endrun(1);
+    }
+#endif
 #endif
 #endif
 #endif
@@ -602,7 +628,6 @@ void open_outputfiles(void)
 #endif
 
 
-
 #ifdef GALSF
   sprintf(buf, "%s%s", All.OutputDir, "sfr.txt");
   if(!(FdSfr = fopen(buf, mode)))
@@ -623,6 +648,14 @@ void open_outputfiles(void)
 #endif
     
     
+#if defined(RT_CHEM_PHOTOION) && !defined(IO_REDUCED_MODE)
+  sprintf(buf, "%s%s", All.OutputDir, "rt_photoion_chem.txt");
+  if(!(FdRad = fopen(buf, mode)))
+    {
+      printf("error in opening file '%s'\n", buf);
+      endrun(1);
+    }
+#endif
 
 #ifdef BLACK_HOLES
   sprintf(buf, "%s%s", All.OutputDir, "blackholes.txt");
@@ -887,6 +920,28 @@ void read_parameter_file(char *fname)
         
         
 #ifdef GRAIN_FLUID
+#ifdef GRAIN_RDI_TESTPROBLEM
+        strcpy(tag[nt],"Grain_Charge_Parameter");
+        addr[nt] = &All.Grain_Charge_Parameter;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt],"Dust_to_Gas_Mass_Ratio");
+        addr[nt] = &All.Dust_to_Gas_Mass_Ratio;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt],"Vertical_Gravity_Strength");
+        addr[nt] = &All.Vertical_Gravity_Strength;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt],"Vertical_Grain_Accel");
+        addr[nt] = &All.Vertical_Grain_Accel;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt],"Vertical_Grain_Accel_Angle");
+        addr[nt] = &All.Vertical_Grain_Accel_Angle;
+        id[nt++] = REAL;
+#endif
+
         strcpy(tag[nt],"Grain_Internal_Density");
         addr[nt] = &All.Grain_Internal_Density;
         id[nt++] = REAL;
@@ -897,6 +952,10 @@ void read_parameter_file(char *fname)
 
         strcpy(tag[nt],"Grain_Size_Max");
         addr[nt] = &All.Grain_Size_Max;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt],"Grain_Size_Spectrum_Powerlaw");
+        addr[nt] = &All.Grain_Size_Spectrum_Powerlaw;
         id[nt++] = REAL;
 #endif
 
@@ -920,10 +979,20 @@ void read_parameter_file(char *fname)
         
 
 
+#ifdef RT_LEBRON
+        strcpy(tag[nt], "PhotonMomentum_Coupled_Fraction");
+        addr[nt] = &All.PhotonMomentum_Coupled_Fraction;
+        id[nt++] = REAL;
+#endif
         
 
         
         
+#ifdef DM_SIDM
+        strcpy(tag[nt], "InteractionCrossSection");
+        addr[nt] = &All.InteractionCrossSection;
+        id[nt++] = REAL;
+#endif
 
 
 
@@ -1121,6 +1190,12 @@ void read_parameter_file(char *fname)
         strcpy(tag[nt], "SeedBlackHoleMinRedshift");
         addr[nt] = &All.SeedBlackHoleMinRedshift;
         id[nt++] = REAL;
+        
+#ifdef BH_SEED_FROM_LOCALGAS
+        strcpy(tag[nt], "SeedBlackHolePerUnitMass");
+        addr[nt] = &All.SeedBlackHolePerUnitMass;
+        id[nt++] = REAL;
+#endif
 #endif
         
 #ifdef BH_ALPHADISK_ACCRETION
@@ -1135,7 +1210,7 @@ void read_parameter_file(char *fname)
         id[nt++] = REAL;
 #endif
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK) || defined(BH_WIND_SPAWN)
         strcpy(tag[nt],"BAL_f_accretion");
         addr[nt] = &All.BAL_f_accretion;
         id[nt++] = REAL;
@@ -1144,7 +1219,23 @@ void read_parameter_file(char *fname)
         addr[nt] = &All.BAL_v_outflow;
         id[nt++] = REAL;
 #endif
+        
+#if defined(BH_COSMIC_RAYS)
+        strcpy(tag[nt],"BH_CosmicRay_Injection_Efficiency");
+        addr[nt] = &All.BH_CosmicRay_Injection_Efficiency;
+        id[nt++] = REAL;
+#endif
+        
 
+#ifdef BH_WIND_SPAWN
+        strcpy(tag[nt], "BAL_internal_temperature");
+        addr[nt] = &All.BAL_internal_temperature;
+        id[nt++] = REAL;
+        
+        strcpy(tag[nt], "BAL_wind_particle_mass");
+        addr[nt] = &All.BAL_wind_particle_mass;
+        id[nt++] = REAL;
+#endif
 
 
 #endif /* BLACK_HOLES */
@@ -1345,6 +1436,15 @@ void read_parameter_file(char *fname)
         
         
 
+#if defined(RT_CHEM_PHOTOION) && !(defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(GALSF))
+        strcpy(tag[nt], "IonizingLuminosityPerSolarMass_cgs");
+        addr[nt] = &All.IonizingLuminosityPerSolarMass_cgs;
+        id[nt++] = REAL;
+        
+        strcpy(tag[nt], "star_Teff");
+        addr[nt] = &All.star_Teff;
+        id[nt++] = REAL;
+#endif
 
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
         strcpy(tag[nt], "AGS_DesNumNgb");
@@ -1441,28 +1541,6 @@ void read_parameter_file(char *fname)
          ST_Seed         42
          ST_SpectForm    1
          */
-#endif
-
-#ifdef TURB_DRIVING_DUMPSPECTRUM
-      strcpy(tag[nt], "BoxWidth");
-      addr[nt] = &All.BoxWidth;
-      id[nt++] = REAL;
-
-      strcpy(tag[nt], "BoxCenter_x");
-      addr[nt] = &All.BoxCenter_x;
-      id[nt++] = REAL;
-
-      strcpy(tag[nt], "BoxCenter_y");
-      addr[nt] = &All.BoxCenter_y;
-      id[nt++] = REAL;
-
-      strcpy(tag[nt], "BoxCenter_z");
-      addr[nt] = &All.BoxCenter_z;
-      id[nt++] = REAL;
-
-      strcpy(tag[nt], "TransformSize");
-      addr[nt] = &All.FourierGrid;
-      id[nt++] = INT;
 #endif
 
 
@@ -1660,6 +1738,9 @@ void read_parameter_file(char *fname)
 #endif
     if(All.AGS_MaxNumNgbDeviation < 0.05) All.AGS_MaxNumNgbDeviation = 0.05;
 #endif
+#ifdef BH_WIND_SPAWN
+      All.AGNWindID = 1913298393;       // this seems weird, but is the bitshifted version of 1234568912345 for not long IDs.
+#endif
 #endif // closes DEVELOPER_MODE check //
     
 
@@ -1673,12 +1754,11 @@ void read_parameter_file(char *fname)
 #ifdef GALSF_EFFECTIVE_EQS
     All.CritPhysDensity = 0.0; /* this will be calculated by the code below */
 #endif
-
     All.TypeOfOpeningCriterion = 1;
     /*!< determines tree cell-opening criterion: 0 for Barnes-Hut, 1 for relative criterion: this
      should only be changed if you -really- know what you're doing! */    
     
-#if defined(MAGNETIC) || defined(HYDRO_MESHLESS_FINITE_VOLUME) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(MAGNETIC) || defined(HYDRO_MESHLESS_FINITE_VOLUME) || defined(BH_WIND_SPAWN)
     if(All.CourantFac > 0.2) {All.CourantFac = 0.2;} //
     /* (PFH) safety factor needed for MHD calc, because people keep using the same CFac as hydro! */
 #endif

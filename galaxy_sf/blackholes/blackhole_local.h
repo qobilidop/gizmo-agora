@@ -25,14 +25,21 @@ static struct blackholedata_in
     MyFloat Hsml;
     MyFloat Mass;
     MyFloat BH_Mass;
+#ifdef SINGLE_STAR_STRICT_ACCRETION
+    MyFloat SinkRadius;
+#endif  
 #ifdef BH_ALPHADISK_ACCRETION
     MyFloat BH_Mass_AlphaDisk;
 #endif
     MyFloat Vel[3];
     MyIDType ID;
     int NodeList[NODELISTLENGTH];
-#if defined(FLAG_NOT_IN_PUBLIC_CODE_X) || defined(FLAG_NOT_IN_PUBLIC_CODE)
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS) || defined(BH_WIND_KICK)
     MyFloat Jgas_in_Kernel[3];
+#endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    MyFloat BH_disk_hr;
+    MyFloat BH_angle_weighted_kernel_sum;
 #endif
 #if defined(BH_GRAVCAPTURE_GAS)
     MyFloat mass_to_swallow_edd;
@@ -65,6 +72,9 @@ static struct blackholedata_out
 #endif
 #ifdef GALSF
     MyFloat Accreted_Age;
+#endif
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+    MyFloat BH_angle_weighted_kernel_sum;
 #endif
 }
 *BlackholeDataResult, *BlackholeDataOut;

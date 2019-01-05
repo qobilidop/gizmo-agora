@@ -52,7 +52,7 @@ double calculate_individual_stellar_luminosity(double mdot, double mass, long i)
     }
     if(i > 0)
     {
-        // account for pre-main sequence evolution //
+        /*account for pre-main sequence evolution */
         if(P[i].Type == 5)
         {
             double T4000_4 = pow(m_solar , 0.55); // protostellar temperature along Hayashi track
@@ -61,6 +61,7 @@ double calculate_individual_stellar_luminosity(double mdot, double mass, long i)
     lum_sol *= SOLAR_LUM / (All.UnitEnergy_in_cgs / All.UnitTime_in_s);
     lum += lum_sol;
 #endif
+    //lum = 1000*SOLAR_LUM / (All.UnitEnergy_in_cgs / All.UnitTime_in_s); //Test, set for 1000 l_sun, for debugging
     return lum;
 }
 
@@ -81,7 +82,7 @@ double calculate_relative_light_to_mass_ratio_from_imf(double stellar_age_in_gyr
 }
 
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && defined(GALSF))
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || (defined(RT_CHEM_PHOTOION) && defined(GALSF))
 double particle_ionizing_luminosity_in_cgs(long i)
 {
     double lm_ssp=0;

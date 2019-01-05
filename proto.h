@@ -6,9 +6,6 @@
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
-#ifdef TURB_DRIVING_DUMPSPECTRUM
-#include "power_spec/TURB_DRIVING_DUMPSPECTRUM_proto.h"
-#endif
 #ifdef BLACK_HOLES
 #include "./galaxy_sf/blackholes/blackhole.h"
 #endif
@@ -307,6 +304,10 @@ double INLINE_FUNC hubble_function_external(double a);
 #endif
 
 void blackhole_accretion(void);
+#ifdef BH_WIND_SPAWN
+int blackhole_spawn_particle_wind_shell( int i, int dummy_sph_i_to_clone );
+void spawn_bh_wind_feedback(void);
+#endif
 int blackhole_evaluate(int target, int mode, int *nexport, int *nsend_local);
 int blackhole_evaluate_swallow(int target, int mode, int *nexport, int *nsend_local);
 
@@ -485,9 +486,15 @@ double mechanical_fb_calculate_eventrates(int i, double dt);
 
 #ifdef GRAIN_FLUID
 void apply_grain_dragforce(void);
+#ifdef GRAIN_COLLISIONS
+void grain_collisions(void);
+void grain_density(void);
+int grain_density_evaluate(int target, int mode, int *nexport, int *nsend_local);
+int grain_density_isactive(int n);
+#endif
 #endif
 
-#if defined(FLAG_NOT_IN_PUBLIC_CODE) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && defined(GALSF))
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || (defined(RT_CHEM_PHOTOION) && defined(GALSF))
 double particle_ionizing_luminosity_in_cgs(long i);
 #endif
 
@@ -519,6 +526,9 @@ void ReadMultiSpeciesTables(int iT);
 char *GetMultiSpeciesFilename(int i, int hk);
 #endif
 
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(BH_WIND_CONTINUOUS)
+double bh_angleweight_localcoupling(int j, double hR, double theta, double r, double H_bh);
+#endif
 
 #if defined(GALSF_SUBGRID_WINDS)
 void assign_wind_kick_from_sf_routine(int i, double sm, double dtime, double* pvtau_return);
@@ -654,14 +664,46 @@ double enclosed_mass(double R);
 void pm_setup_nonperiodic_kernel(void);
 
 
+#if defined(RADTRANSFER) || defined(RT_USE_GRAVTREE)
+int rt_get_source_luminosity(int i, double sigma_0, double *lum);
+double rt_kappa(int j, int k_freq);
+double rt_absorption_rate(int i, int k_freq);
+double rt_diffusion_coefficient(int i, int k_freq);
+void rt_eddington_update_calculation(int j);
+void rt_update_driftkick(int i, double dt_entr, int mode);
+#endif
 #ifdef RT_SOURCE_INJECTION
 void rt_source_injection(void);
 #endif
 
+#ifdef RADTRANSFER
+void rt_set_simple_inits(void);
+#if defined(RT_EVOLVE_INTENSITIES)
+void rt_init_intensity_directions(void);
+#endif
+void rt_get_lum_gas(int target, double *je);
+double slab_averaging_function(double x);
+
+#ifdef RT_DIFFUSION_CG
+void rt_diffusion_cg_solve(void);
+#endif
+
+#ifdef RT_CHEM_PHOTOION
+double rt_return_photon_number_density(int i, int k);
+void rt_update_chemistry(void);
+void rt_get_sigma(void);
+double rt_GetCoolingTime(int i, double u, double rho);
+double rt_cooling_photoheating(int i, double dt);
+double rt_DoCooling(int, double);
+double rt_DoHeating(int, double);
+double rt_get_cooling_rate(int i, double entropy);
+void rt_write_chemistry_stats(void);
+#endif
+
+#endif
 
 
 void find_block(char *label,FILE *fd);
-
 
 
 int ags_gravity_kernel_shared_BITFLAG(short int particle_type_primary);
@@ -701,6 +743,15 @@ void local_slopelimiter(double *grad, double valmax, double valmin, double alim,
 void apply_excision();
 #endif
 
+#ifdef DM_SIDM
+double prob_of_interaction(double mass, double r, double h_si, double dV[3], int dt_step);
+double g_geo(double r);
+void calculate_interact_kick(double dV[3], double kick[3]);
+void init_geofactor_table(void);
+double geofactor_integ(double x, void * params);
+double geofactor_angle_integ(double u, void * params);
+void init_self_interactions();
+#endif
 
 
 
