@@ -476,6 +476,7 @@ double domain_particle_cost_multiplier(int i)
         if(star_age>0.1) {multiplier = 3.125;} else {if(star_age>0.035) {multiplier = 5.;} else {multiplier = 10.;}}
     }
 #endif
+
     
     return multiplier;
 }
@@ -486,7 +487,6 @@ double domain_particle_costfactor(int i)
 {
     return 0.1 + P[i].GravCost[TakeLevel];
 }
-
 
 
 
@@ -605,7 +605,6 @@ int domain_decompose(void)
 	     maxwork / (sumwork / NTask), maxload / (((double) sumload) / NTask),
 	     maxworksph / ((sumworksph + 1.0e-30) / NTask));
     }
-
 
   /* flag the particles that need to be exported */
 
@@ -902,6 +901,7 @@ void domain_exchange(void)
 	      SphP[n] = SphP[N_gas - 1];
 	      Key[n] = Key[N_gas - 1];
 
+
 	      P[N_gas - 1] = P[NumPart - 1];
 	      Key[N_gas - 1] = Key[NumPart - 1];
 
@@ -932,6 +932,7 @@ void domain_exchange(void)
 	    }
 	}
     }
+
 
   long count_totget;
 
@@ -984,6 +985,7 @@ void domain_exchange(void)
 #ifdef SEPARATE_STELLARDOMAINDECOMP
   max_requests += 6; // check this, see what its hardwired to //
 #endif
+
 
 
   requests = (MPI_Request *) mymalloc("requests", max_requests * NTask * sizeof(MPI_Request));
@@ -1147,6 +1149,7 @@ void domain_exchange(void)
 
 
 #endif
+
 
   NumPart += count_get;
   N_gas += count_get_sph;
@@ -2525,12 +2528,11 @@ void domain_sumCost(void)
 
       no = topNodes[no].Leaf;
       double wt = domain_particle_cost_multiplier(n);
-
       local_domainWork[no] += (1 + wt) * domain_particle_costfactor(n);
       local_domainCount[no] += 1;
       if(TimeBinActive[P[n].TimeBin] || UseAllParticles) {local_domainWorkSph[no] += wt;}
       if(P[n].Type == 0) {local_domainCountSph[no] += 1;}
-        
+
 #ifdef SEPARATE_STELLARDOMAINDECOMP
         if(P[n].Type == 4) {local_domainCountStars[no] += 1;}
 #endif

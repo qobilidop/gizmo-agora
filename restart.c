@@ -17,6 +17,7 @@
 
 static FILE *fd;
 
+
 static void in(int *x, int modus);
 static void byten(void *x, size_t n, int modus);
 
@@ -49,7 +50,7 @@ void restart(int modus)
     struct global_data_all_processes all_task0;
     int nmulti = MULTIPLEDOMAINS, regular_restarts_are_valid = 1, backup_restarts_are_valid = 1;
     
-    
+
     
     if(ThisTask == 0 && modus == 0) // writing re-start files: move old files to .bak
     {
@@ -169,7 +170,6 @@ void restart(int modus)
 #endif
           new_MaxPart = All.MaxPart;
 
-
 		  save_PartAllocFactor = -1;
 		}
 
@@ -216,6 +216,7 @@ void restart(int modus)
 		}
 	      /* Sph-Particle data  */
 	      byten(&SphP[0], N_gas * sizeof(struct sph_particle_data), modus);
+
 	    }
 
 	  /* write state of random number generator */
@@ -327,7 +328,6 @@ void restart(int modus)
 
       domain_Decomposition(0, 0, 0);
     }
-
 }
 
 

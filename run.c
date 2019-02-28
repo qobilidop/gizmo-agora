@@ -64,7 +64,7 @@ void run(void)
             
             break;
         }
-        
+	
         find_timesteps();		/* find-timesteps */
         
         do_first_halfstep_kick();	/* half-step kick at beginning of timestep for synchronous particles */
@@ -203,12 +203,12 @@ void run(void)
 
 void set_non_standard_physics_for_current_time(void)
 {
-#ifdef COOLING
+#if defined(COOLING) && !defined(FLAG_NOT_IN_PUBLIC_CODE) 
     /* set UV background for the current time */
     IonizeParams();
 #endif
     
-#ifdef COOL_METAL_LINES_BY_SPECIES
+#if defined(COOL_METAL_LINES_BY_SPECIES) && !defined(FLAG_NOT_IN_PUBLIC_CODE) 
     /* load the metal-line cooling tables appropriate for the UV background */
     if(All.ComovingIntegrationOn) LoadMultiSpeciesTables();
 #endif
@@ -395,7 +395,7 @@ void find_next_sync_point_and_drift(void)
 	}
     }
 
-  MPI_Allreduce(&ti_next_kick, &ti_next_kick_global, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+  MPI_Allreduce(&ti_next_kick, &ti_next_kick_global, 1, MPI_TYPE_TIME, MPI_MIN, MPI_COMM_WORLD);
 
   while(ti_next_kick_global >= All.Ti_nextoutput && All.Ti_nextoutput >= 0)
     {
@@ -888,7 +888,7 @@ void write_cpu_log(void)
 #endif
   if(ThisTask == 0)
     {
-      fprintf(FdCPU, "Step %d, Time: %g, CPUs: %d\n", All.NumCurrentTiStep, All.Time, NTask);
+      fprintf(FdCPU, "Step %lld, Time: %g, CPUs: %d\n",(long long) All.NumCurrentTiStep, All.Time, NTask);
       fprintf(FdCPU,
 	      "total         %10.2f  %5.1f%%\n"
 	      "treegrav      %10.2f  %5.1f%%\n"
@@ -903,6 +903,18 @@ void write_cpu_log(void)
 	      "   agscomm    %10.2f  %5.1f%%\n"
 	      "   agsimbal   %10.2f  %5.1f%%\n"
           "   agsmisc    %10.2f  %5.1f%%\n"
+#endif
+#ifdef TURB_DIFF_DYNAMIC
+        "dyndiff       %10.2f  %5.1f%%\n"
+        "   compute    %10.2f  %5.1f%%\n"
+        "   comm       %10.2f  %5.1f%%\n"
+        "   wait       %10.2f  %5.1f%%\n"
+        "   misc       %10.2f  %5.1f%%\n"
+        "velsmooth     %10.2f  %5.1f%%\n"
+        "   compute    %10.2f  %5.1f%%\n"
+        "   comm       %10.2f  %5.1f%%\n"
+        "   wait       %10.2f  %5.1f%%\n"
+        "   misc       %10.2f  %5.1f%%\n"
 #endif
 #ifdef DM_SIDM
           "sidm_total    %10.2f  %5.1f%%\n"
@@ -953,6 +965,18 @@ void write_cpu_log(void)
     All.CPU_Sum[CPU_AGSDENSCOMM], (All.CPU_Sum[CPU_AGSDENSCOMM]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_AGSDENSWAIT], (All.CPU_Sum[CPU_AGSDENSWAIT]) / All.CPU_Sum[CPU_ALL] * 100,
     All.CPU_Sum[CPU_AGSDENSMISC], (All.CPU_Sum[CPU_AGSDENSMISC]) / All.CPU_Sum[CPU_ALL] * 100,
+#endif
+#ifdef TURB_DIFF_DYNAMIC
+    (All.CPU_Sum[CPU_DYNDIFFCOMPUTE] + All.CPU_Sum[CPU_DYNDIFFWAIT] + All.CPU_Sum[CPU_DYNDIFFCOMM] + All.CPU_Sum[CPU_DYNDIFFMISC]), (All.CPU_Sum[CPU_DYNDIFFCOMPUTE] + All.CPU_Sum[CPU_DYNDIFFWAIT] + All.CPU_Sum[CPU_DYNDIFFCOMM] + All.CPU_Sum[CPU_DYNDIFFMISC]) / All.CPU_Sum[CPU_ALL] * 100,
+    All.CPU_Sum[CPU_DYNDIFFCOMPUTE], (All.CPU_Sum[CPU_DYNDIFFCOMPUTE]) / All.CPU_Sum[CPU_ALL] * 100,
+    All.CPU_Sum[CPU_DYNDIFFWAIT], (All.CPU_Sum[CPU_DYNDIFFWAIT]) / All.CPU_Sum[CPU_ALL] * 100,
+    All.CPU_Sum[CPU_DYNDIFFCOMM], (All.CPU_Sum[CPU_DYNDIFFCOMM]) / All.CPU_Sum[CPU_ALL] * 100,
+    All.CPU_Sum[CPU_DYNDIFFMISC], (All.CPU_Sum[CPU_DYNDIFFMISC]) / All.CPU_Sum[CPU_ALL] * 100,
+    (All.CPU_Sum[CPU_IMPROVDIFFCOMPUTE] + All.CPU_Sum[CPU_IMPROVDIFFWAIT] + All.CPU_Sum[CPU_IMPROVDIFFCOMM] + All.CPU_Sum[CPU_IMPROVDIFFMISC]), (All.CPU_Sum[CPU_IMPROVDIFFCOMPUTE] + All.CPU_Sum[CPU_IMPROVDIFFWAIT] + All.CPU_Sum[CPU_IMPROVDIFFCOMM] + All.CPU_Sum[CPU_IMPROVDIFFMISC]) / All.CPU_Sum[CPU_ALL] * 100,
+    All.CPU_Sum[CPU_IMPROVDIFFCOMPUTE], (All.CPU_Sum[CPU_IMPROVDIFFCOMPUTE]) / All.CPU_Sum[CPU_ALL] * 100,
+    All.CPU_Sum[CPU_IMPROVDIFFWAIT], (All.CPU_Sum[CPU_IMPROVDIFFWAIT]) / All.CPU_Sum[CPU_ALL] * 100,
+    All.CPU_Sum[CPU_IMPROVDIFFCOMM], (All.CPU_Sum[CPU_IMPROVDIFFCOMM]) / All.CPU_Sum[CPU_ALL] * 100,
+    All.CPU_Sum[CPU_IMPROVDIFFMISC], (All.CPU_Sum[CPU_IMPROVDIFFMISC]) / All.CPU_Sum[CPU_ALL] * 100,
 #endif
 #ifdef DM_SIDM
     All.CPU_Sum[CPU_SIDMSCATTER], (All.CPU_Sum[CPU_SIDMSCATTER])/ All.CPU_Sum[CPU_ALL] * 100,
@@ -1078,7 +1102,7 @@ void output_extra_log_messages(void)
         double hubble_a;
         
         hubble_a = hubble_function(All.Time);
-        fprintf(FdDE, "%d %g %e ", All.NumCurrentTiStep, All.Time, hubble_a);
+        fprintf(FdDE, "%lld %g %e ", (long long) All.NumCurrentTiStep, All.Time, hubble_a);
 #ifndef GR_TABULATED_COSMOLOGY_W
         fprintf(FdDE, "%e ", All.DarkEnergyConstantW);
 #else

@@ -529,12 +529,12 @@ void gravity_tree(void)
         }			/* Ewald_iter */
         
 
-    
+
     myfree(DataNodeList);
     myfree(DataIndexTable);
-    
-    
-    
+
+
+        
     /* assign node cost to particles */
     if(TakeLevel >= 0)
     {

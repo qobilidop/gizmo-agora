@@ -519,7 +519,7 @@ void ags_density(void)
                         particle_set_to_maxhsml_flag = 0;
                     } else {
                         /* ok, the particle needs to be set to the maximum, and (if gas) iterated one more time */
-                        if(P[i].Type==0) redo_particle = 1;
+                        redo_particle = 1;
                         PPP[i].AGS_Hsml = maxsoft;
                         particle_set_to_maxhsml_flag = 1;
                     }
@@ -537,7 +537,7 @@ void ags_density(void)
                         particle_set_to_minhsml_flag = 0;
                     } else {
                         /* ok, the particle needs to be set to the minimum, and (if gas) iterated one more time */
-                        if(P[i].Type==0) redo_particle = 1;
+                        redo_particle = 1;
                         PPP[i].AGS_Hsml = minsoft;
                         particle_set_to_minhsml_flag = 1;
                     }
@@ -948,7 +948,7 @@ int ags_density_isactive(int i)
 double ags_return_maxsoft(int i)
 {
     double maxsoft = All.MaxHsml; // overall maximum - nothing is allowed to exceed this
-#if !(EXPAND_PREPROCESSOR_(ADAPTIVE_GRAVSOFT_FORALL) == 1)
+#ifdef ADAPTIVE_GRAVSOFT_FORALL
     maxsoft = DMIN(maxsoft, ADAPTIVE_GRAVSOFT_FORALL * All.ForceSoftening[P[i].Type]); // user-specified maximum
 #ifdef PMGRID
     /*!< this gives the maximum allowed gravitational softening when using the TreePM method.
@@ -1088,13 +1088,13 @@ struct AGSForce_data_in
     double Vel[3];
     int NodeList[NODELISTLENGTH];
     int Type;
-    int dt_step;
+    integertime dt_step;
 #if defined(AGS_FACE_CALCULATION_IS_ACTIVE)
     double NV_T[3][3];
     double V_i;
 #endif
 #ifdef DM_SIDM
-    int dt_step_sidm;
+    integertime dt_step_sidm;
     MyIDType ID;
 #endif
 }
@@ -1105,7 +1105,7 @@ struct AGSForce_data_out
 {
 #ifdef DM_SIDM
     double sidm_kick[3];
-    int dt_step_sidm;
+    integertime dt_step_sidm;
     int si_count;
 #endif
 }

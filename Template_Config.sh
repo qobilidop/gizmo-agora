@@ -281,8 +281,6 @@
 
 
 
-
-
 ############################################################################################################################
 # -------------------------------------- Radiative Transfer & Radiation Hydrodynamics:
 # -------------------------------------------- modules developed by PFH with David Khatami, Mike Grudic, and Nathan Butcher (special  thanks to Alessandro Lupi)
@@ -337,6 +335,7 @@
 ####################################################################################################
 # --------------------------------------- Input/Output options
 ####################################################################################################
+#LONG_INTEGER_TIME              # total number of interger time step = 1<<39
 #OUTPUT_ADDITIONAL_RUNINFO      # enables extended simulation output data (can slow down machines significantly in massively-parallel runs)
 #OUTPUT_IN_DOUBLEPRECISION      # snapshot files will be written in double precision
 #INPUT_IN_DOUBLEPRECISION       # input files assumed to be in double precision (otherwise float is assumed)
@@ -411,13 +410,16 @@
 #DONOTUSENODELIST               # MPI debugging
 #NOTYPEPREFIX_FFTW              # FFTW debugging (fftw-header/libraries accessed without type prefix, adopting whatever was
                                 #   chosen as default at compile of fftw). Otherwise, the type prefix 'd' for double is used.
-USE_FFTW3                       # enables FFTW3 (can be used with DOUBLEPRECISION_FFTW) 
+#USE_FFTW3                      # enables FFTW3 (can be used with DOUBLEPRECISION_FFTW) 
 #DOUBLEPRECISION_FFTW           # FFTW in double precision to match libraries
 # --------------------
 # ----- Load-Balancing
 #ALLOW_IMBALANCED_GASPARTICLELOAD # increases All.MaxPartSph to All.MaxPart: can allow better load-balancing in some cases, but uses more memory. But use me if you run into errors where it can't fit the domain (where you would increase PartAllocFac, but can't for some reason)
 #SEPARATE_STELLARDOMAINDECOMP   # separate stars (ptype=4) and other non-gas particles in domain decomposition (may help load-balancing)
 ####################################################################################################
+
+
+
 
 
 

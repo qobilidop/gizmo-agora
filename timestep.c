@@ -144,7 +144,7 @@ void find_timesteps(void)
     
     integertime ti_min_glob;
     
-    MPI_Allreduce(&ti_step, &ti_min_glob, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+    MPI_Allreduce(&ti_step, &ti_min_glob, 1, MPI_TYPE_TIME, MPI_MIN, MPI_COMM_WORLD);
 #endif
     
     
@@ -428,7 +428,7 @@ integertime get_timestep(int p,		/*!< particle index */
 #endif
 
 #ifdef TIDAL_TIMESTEP_CRITERION // tidal criterion obtains the same energy error in an optimally-softened Plummer sphere over ~100 crossing times as the Power 2003 criterion
-    double dt_tidal = 0.; for(int k=0; k<3; k++) {dt_tidal += P[p].tidal_tensorps[k][k]*P[p].tidal_tensorps[k][k];} // this is diagonalized already in the gravity loop
+    double dt_tidal = 0.; {int k; for(k=0; k<3; k++) {dt_tidal += P[p].tidal_tensorps[k][k]*P[p].tidal_tensorps[k][k];}} // this is diagonalized already in the gravity loop
     dt_tidal = sqrt(All.ErrTolIntAccuracy / sqrt(dt_tidal));
     dt = DMIN(All.MaxSizeTimestep, dt_tidal);
 #endif
@@ -801,7 +801,7 @@ integertime get_timestep(int p,		/*!< particle index */
 #endif
             if(dt_accr > 0 && dt_accr < dt) {dt = dt_accr;}
 
-        double dt_ngbs = (BPP(p).BH_TimeBinGasNeighbor ? (1 << BPP(p).BH_TimeBinGasNeighbor) : 0) * All.Timebase_interval / All.cf_hubble_a;
+        double dt_ngbs = (BPP(p).BH_TimeBinGasNeighbor ? (((integertime) 1) << BPP(p).BH_TimeBinGasNeighbor) : 0) * All.Timebase_interval / All.cf_hubble_a;
 
         if(dt > dt_ngbs && dt_ngbs > 0) {dt = 1.01 * dt_ngbs; }
 #ifdef SINGLE_STAR_FORMATION
@@ -893,9 +893,9 @@ integertime get_timestep(int p,		/*!< particle index */
     {
         printf("\nError: A timestep of size zero was assigned on the integer timeline, no here!!!\n"
                "We better stop.\n"
-               "Task=%d Part-ID=%llu dt=%g dtc=%g dtv=%g dtdis=%g tibase=%g ti_step=%d ac=%g xyz=(%g|%g|%g) tree=(%g|%g|%g)\n\n",
+               "Task=%d Part-ID=%llu dt=%g dtc=%g dtv=%g dtdis=%g tibase=%g ti_step=%lld ac=%g xyz=(%g|%g|%g) tree=(%g|%g|%g)\n\n",
                ThisTask, (unsigned long long) P[p].ID, dt, dt_courant, dt_divv, dt_displacement,
-               All.Timebase_interval, ti_step, ac,
+               All.Timebase_interval, (long long) ti_step, ac,
                P[p].Pos[0], P[p].Pos[1], P[p].Pos[2], P[p].GravAccel[0], P[p].GravAccel[1],
                P[p].GravAccel[2]);
 #ifdef PMGRID
@@ -1038,8 +1038,9 @@ int get_timestep_bin(integertime ti_step)
 #ifdef WAKEUP
 void process_wake_ups(void)
 {
-    int i, n, dt_bin;
-    int ti_next_for_bin, ti_next_kick, ti_next_kick_global, max_time_bin_active;
+    int i, n;
+    integertime dt_bin, ti_next_for_bin, ti_next_kick, ti_next_kick_global;
+    int max_time_bin_active;
     int bin, binold, prev, next;
     long long ntot;
     
@@ -1064,7 +1065,7 @@ void process_wake_ups(void)
         }
     }
     
-    MPI_Allreduce(&ti_next_kick, &ti_next_kick_global, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+    MPI_Allreduce(&ti_next_kick, &ti_next_kick_global, 1, MPI_TYPE_TIME, MPI_MIN, MPI_COMM_WORLD);
     
 #ifndef IO_REDUCED_MODE
     if(ThisTask == 0) printf("predicting next timestep: %g\n", (ti_next_kick_global - All.Ti_Current) * All.Timebase_interval);

@@ -317,6 +317,7 @@ void split_particle_i(int i, int n_particles_split, int i_nearest, double r2_nea
     P[j] = P[i];
     //memcpy(P[j],P[i],sizeof(struct particle_data)); // safer copy to make sure we don't just end up with a pointer re-direct
 
+
     /* the particle needs to be 'born active' and added to the active set */
     NextActiveParticle[j] = FirstActiveParticle;
     FirstActiveParticle = j;
@@ -342,7 +343,8 @@ void split_particle_i(int i, int n_particles_split, int i_nearest, double r2_nea
     P[i].ID_generation = P[i].ID_generation + 1;
     if(P[i].ID_generation > 30) {P[i].ID_generation=0;} // roll over at 32 generations (unlikely to ever reach this)
     P[j].ID_generation = P[i].ID_generation; // ok, all set!
-    
+
+
     /* assign masses to both particles (so they sum correctly) */
     P[j].Mass = mass_of_new_particle * P[i].Mass;
     P[i].Mass -= P[j].Mass;
@@ -764,6 +766,7 @@ void rearrange_particle_sequence(void)
                 sphsave = SphP[i];
                 SphP[i] = SphP[j];
                 SphP[j] = sphsave;  /* have the gas particle take its sph pointer with it */
+
                 /* ok we've now swapped the ordering so the gas particle is still inside the block */
                 flag = 1;
             }

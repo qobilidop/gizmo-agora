@@ -14,7 +14,6 @@
  *   Phil Hopkins (phopkins@caltech.edu) for GIZMO.
  */
 
-
 double ThermalProperties(double u, double rho, int target, double *mu_guess, double *ne_guess, double *nH0_guess, double *nHp_guess, double *nHe0_guess, double *nHep_guess, double *nHepp_guess);
 void   InitCool(void);
 void   InitCoolMemory(void);

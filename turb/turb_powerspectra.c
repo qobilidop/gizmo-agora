@@ -62,6 +62,10 @@ static ptrdiff_t fftsize, maxfftsize;
 static MPI_Datatype MPI_TYPE_PTRDIFF; 
 #endif
 static fftw_real *velfield[3];
+#ifdef TURB_DIFF_DYNAMIC
+static fftw_real *velbarfield[3];
+static fftw_real *velhatfield[3];
+#endif
 static fftw_real *smoothedvelfield[3];
 static fftw_real *vorticityfield[3];
 static fftw_real *velrhofield[3];
