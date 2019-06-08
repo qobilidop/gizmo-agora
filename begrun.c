@@ -47,7 +47,7 @@ void begrun(void)
 #endif
   if(ThisTask == 0)
     {
-      printf("\nRunning on %d MPI tasks.\n", NTask);
+     printf("\nRunning on %d MPI tasks.\n", NTask);
 #ifdef _OPENMP
 #pragma omp parallel private(tid)
       {
@@ -65,6 +65,25 @@ void begrun(void)
       printf("\nSize of sph particle structure   %d  [bytes]\n", (int) sizeof(struct sph_particle_data));
 
     }
+
+#ifdef CHIMES_TURB_DIFF_IONS 
+  // Check that TURB_DIFF_METALS and TURB_DIFF_METALS_LOWORDER 
+  // have also been switched on. 
+#ifndef TURB_DIFF_METALS 
+  if (ThisTask == 0) 
+    {
+      printf("ERROR: CHIMES_TURB_DIFF_IONS requires TURB_DIFF_METALS, but this is missing. Aborting.\n"); 
+      endrun(6572); 
+    }
+#endif // !(TURB_DIFF_METALS) 
+#ifndef TURB_DIFF_METALS_LOWORDER 
+  if (ThisTask == 0) 
+    {
+      printf("ERROR: CHIMES_TURB_DIFF_IONS requires TURB_DIFF_METALS_LOWORDER, but this is missing. Aborting.\n"); 
+      endrun(6573); 
+    }
+#endif // !(TURB_DIFF_METALS_LOWORDER) 
+#endif // CHIMES_TURB_DIFF_IONS 
 
   read_parameter_file(ParameterFile);	/* ... read in parameters for this run */
 
@@ -191,7 +210,7 @@ void begrun(void)
       All.ErrTolIntAccuracy = all.ErrTolIntAccuracy;
       All.MinGasHsmlFractional = all.MinGasHsmlFractional;
       All.MinGasTemp = all.MinGasTemp;
-        
+       
         /* allow softenings to be modified during the run */
         if(All.ComovingIntegrationOn)
         {
@@ -426,6 +445,8 @@ void set_units(void)
 #define m_p (PROTONMASS * g)
 #define k_B (BOLTZMANN * erg / deg)
 
+    
+    
 
 #if defined(CONDUCTION_SPITZER) || defined(VISCOSITY_BRAGINSKII)
     /* Note: Because we replace \nabla(T) in the conduction equation with
@@ -646,8 +667,7 @@ void open_outputfiles(void)
         endrun(1);
     }  
 #endif
-    
-    
+
 #if defined(RT_CHEM_PHOTOION) && !defined(IO_REDUCED_MODE)
   sprintf(buf, "%s%s", All.OutputDir, "rt_photoion_chem.txt");
   if(!(FdRad = fopen(buf, mode)))
@@ -989,8 +1009,20 @@ void read_parameter_file(char *fname)
         
         
 #ifdef DM_SIDM
-        strcpy(tag[nt], "InteractionCrossSection");
-        addr[nt] = &All.InteractionCrossSection;
+        strcpy(tag[nt], "DM_InteractionCrossSection");
+        addr[nt] = &All.DM_InteractionCrossSection;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt], "DM_DissipationFactor");
+        addr[nt] = &All.DM_DissipationFactor;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt], "DM_KickPerCollision");
+        addr[nt] = &All.DM_KickPerCollision;
+        id[nt++] = REAL;
+
+        strcpy(tag[nt], "DM_InteractionVelocityDependence");
+        addr[nt] = &All.DM_InteractionVelocityDependence;
         id[nt++] = REAL;
 #endif
 
@@ -1151,13 +1183,12 @@ void read_parameter_file(char *fname)
       addr[nt] = &All.TimeBetOnTheFlyFoF;
       id[nt++] = REAL;
 #endif
-        
 
 #ifdef BLACK_HOLES
         strcpy(tag[nt], "BlackHoleAccretionFactor");
         addr[nt] = &All.BlackHoleAccretionFactor;
         id[nt++] = REAL;
-        
+
         strcpy(tag[nt], "BlackHoleEddingtonFactor");
         addr[nt] = &All.BlackHoleEddingtonFactor;
         id[nt++] = REAL;
@@ -1169,7 +1200,7 @@ void read_parameter_file(char *fname)
         strcpy(tag[nt], "BlackHoleNgbFactor");
         addr[nt] = &All.BlackHoleNgbFactor;
         id[nt++] = REAL;
-        
+
         strcpy(tag[nt], "BlackHoleMaxAccretionRadius");
         addr[nt] = &All.BlackHoleMaxAccretionRadius;
         id[nt++] = REAL;
@@ -1340,6 +1371,24 @@ void read_parameter_file(char *fname)
       strcpy(tag[nt], "TurbDiffusionCoefficient");
       addr[nt] = &All.TurbDiffusion_Coefficient;
       id[nt++] = REAL;
+
+#ifdef TURB_DIFF_DYNAMIC
+      strcpy(tag[nt], "TurbDynamicDiffFac");
+      addr[nt] = &All.TurbDynamicDiffFac;
+      id[nt++] = REAL;
+
+      strcpy(tag[nt], "TurbDynamicDiffIterations");
+      addr[nt] = &All.TurbDynamicDiffIterations;
+      id[nt++] = INT;
+
+      strcpy(tag[nt], "TurbDynamicDiffSmoothing");
+      addr[nt] = &All.TurbDynamicDiffSmoothing;
+      id[nt++] = REAL;
+
+      strcpy(tag[nt], "TurbDynamicDiffMax");
+      addr[nt] = &All.TurbDynamicDiffMax;
+      id[nt++] = REAL;
+#endif
 #endif
 
 
@@ -1660,7 +1709,6 @@ void read_parameter_file(char *fname)
     MPI_Bcast(&All, sizeof(struct global_data_all_processes), MPI_BYTE, 0, MPI_COMM_WORLD);
     
     
-    
     /* ok, -NOW- we can properly read the "All" variables; we should do any if/then checks on
      them at this point. if any all variable depends on another, it must be set AFTER this point! */
     
@@ -1722,6 +1770,9 @@ void read_parameter_file(char *fname)
     All.DivBcleanHyperbolicSigma = 1.0;
 #endif
 
+#ifdef TURB_DIFF_DYNAMIC
+    All.TurbDynamicDiffIterations = 0; /* D. Rennehan: This has NOT been tested above 0 */
+#endif
     if(All.ComovingIntegrationOn) {All.ErrTolForceAcc = 0.005; All.ErrTolIntAccuracy = 0.05;}
     All.MaxNumNgbDeviation = All.DesNumNgb / 640.;
 #ifdef GALSF
@@ -1743,7 +1794,6 @@ void read_parameter_file(char *fname)
 #endif
 #endif // closes DEVELOPER_MODE check //
     
-
     
 #ifdef GALSF
     All.CritOverDensity = 1000.0;
@@ -1920,7 +1970,7 @@ void read_parameter_file(char *fname)
 #endif
     
     
- 
+    
     
     
 #ifdef PTHREADS_NUM_THREADS
@@ -2062,4 +2112,3 @@ void readjust_timebase(double TimeMax_old, double TimeMax_new)
 
   All.TimeMax = TimeMax_new;
 }
-

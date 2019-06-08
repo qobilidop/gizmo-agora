@@ -105,6 +105,8 @@ static inline double DMAX(double a, double b) { return (a > b) ? a : b; }
 static inline double DMIN(double a, double b) { return (a < b) ? a : b; }
 static inline int IMAX(int a, int b) { return (a > b) ? a : b; } 
 static inline int IMIN(int a, int b) { return (a < b) ? a : b; }
+static inline integertime TIMAX(integertime a, integertime b) { return (a > b) ? a : b; }
+static inline integertime TIMIN(integertime a, integertime b) { return (a < b) ? a : b; }
 static inline double MINMOD(double a, double b) {return (a>0) ? ((b<0) ? 0 : DMIN(a,b)) : ((b>=0) ? 0 : DMAX(a,b));}
 /* special version of MINMOD below: a is always the "preferred" choice, b the stability-required one. here we allow overshoot, just not opposite signage */
 static inline double MINMOD_G(double a, double b) {return a;}
@@ -202,6 +204,9 @@ void fof_get_group_velocity(double *cmvel, int gr);
 int fof_find_dmparticles_evaluate(int target, int mode, int *nexport, int *nsend_local);
 void fof_compute_group_properties(int gr, int start, int len);
 
+#ifdef TURB_DIFF_DYNAMIC
+double INLINE_FUNC Get_Particle_Size_for_turb(int i);
+#endif
 void parallel_sort(void *base, size_t nmemb, size_t size, int (*compar) (const void *, const void *));
 void parallel_sort_comm(void *base, size_t nmemb, size_t size, int (*compar) (const void *, const void *), MPI_Comm comm);
 int compare_IDs(const void *a, const void *b);
@@ -499,6 +504,10 @@ double particle_ionizing_luminosity_in_cgs(long i);
 #endif
 
 
+#ifdef CHIMES_HII_REGIONS 
+void chimes_HII_regions_singledomain(void); 
+#endif
+
 
 #ifdef GALSF_FB_MECHANICAL
 void determine_where_SNe_occur(void);
@@ -665,7 +674,13 @@ void pm_setup_nonperiodic_kernel(void);
 
 
 #if defined(RADTRANSFER) || defined(RT_USE_GRAVTREE)
+#ifdef CHIMES_STELLAR_FLUXES 
+double chimes_G0_luminosity(double stellar_age, double stellar_mass); 
+double chimes_ion_luminosity(double stellar_age, double stellar_mass); 
+int rt_get_source_luminosity(int i, double sigma_0, double *lum, double *chimes_lum_G0, double *chimes_lum_ion); 
+#else 
 int rt_get_source_luminosity(int i, double sigma_0, double *lum);
+#endif 
 double rt_kappa(int j, int k_freq);
 double rt_absorption_rate(int i, int k_freq);
 double rt_diffusion_coefficient(int i, int k_freq);
@@ -739,14 +754,25 @@ void *GasGrad_evaluate_primary(void *p, int gradient_iteration);
 void *GasGrad_evaluate_secondary(void *p, int gradient_iteration);
 void local_slopelimiter(double *grad, double valmax, double valmin, double alim, double h, double shoot_tol);
 
+#ifdef TURB_DIFF_DYNAMIC
+void dynamic_diff_calc(void);
+int DynamicDiff_evaluate(int target, int mode, int *exportflag, int *exportnodecount, int *exportindex, int *ngblist, int dynamic_iteration);
+void *DynamicDiff_evaluate_primary(void *p, int dynamic_iteration);
+void *DynamicDiff_evaluate_secondary(void *p, int dynamic_iteration);
+void diffusion_velocity_calc(void);
+int DiffFilter_evaluate(int target, int mode, int *exportflag, int *exportnodecount, int *exportindex, int *ngblist);
+void *DiffFilter_evaluate_primary(void *p);
+void *DiffFilter_evaluate_secondary(void *p);
+#endif
+
 #ifdef PARTICLE_EXCISION
 void apply_excision();
 #endif
 
 #ifdef DM_SIDM
-double prob_of_interaction(double mass, double r, double h_si, double dV[3], int dt_step);
+double prob_of_interaction(double mass, double r, double h_si, double dV[3], integertime dt_step);
 double g_geo(double r);
-void calculate_interact_kick(double dV[3], double kick[3]);
+void calculate_interact_kick(double dV[3], double kick[3], double m);
 void init_geofactor_table(void);
 double geofactor_integ(double x, void * params);
 double geofactor_angle_integ(double u, void * params);

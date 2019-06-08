@@ -121,8 +121,6 @@
 
 
 
-
-
 #if (defined(HYDRO_DENSITY_SPH) || defined(HYDRO_PRESSURE_SPH)) && !defined(HYDRO_SPH)
 #define HYDRO_SPH               /* master flag for SPH: must be enabled if any SPH method is used */
 #endif
@@ -209,11 +207,12 @@
 #endif
 
 
+
 #ifdef GRAVITY_IMPROVED_INTEGRATION
 #define GRAVITY_HYBRID_OPENING_CRIT // use both Barnes-Hut + relative tree opening criterion
 #define STOP_WHEN_BELOW_MINTIMESTEP // stop when below min timestep to prevent bad timestepping
 #define TIDAL_TIMESTEP_CRITERION // use tidal tensor timestep criterion
-#endif
+#endif 
 
 
 #ifdef SINGLE_STAR_FORMATION
@@ -417,7 +416,7 @@
 
 
 
-#if defined(GALSF) || defined(BLACK_HOLES) || defined(RADTRANSFER)
+#if defined(GALSF) || defined(BLACK_HOLES) || defined(RADTRANSFER) 
 #define DO_DENSITY_AROUND_STAR_PARTICLES
 #if !defined(ALLOW_IMBALANCED_GASPARTICLELOAD)
 #define ALLOW_IMBALANCED_GASPARTICLELOAD
@@ -529,11 +528,6 @@
 #define DOGRAD_SOUNDSPEED 1
 #endif
 
-#if defined(CONDUCTION) || defined(VISCOSITY) || defined(TURB_DIFFUSION) || defined(MHD_NON_IDEAL) || (defined(FLAG_NOT_IN_PUBLIC_CODE) && !defined(FLAG_NOT_IN_PUBLIC_CODE_DISABLE_DIFFUSION)) || (defined(RT_DIFFUSION_EXPLICIT) && !defined(RT_EVOLVE_FLUX))
-#ifndef DISABLE_SUPER_TIMESTEPPING
-//#define SUPER_TIMESTEP_DIFFUSION
-#endif
-#endif
 
 
 
@@ -587,10 +581,17 @@
 #define  GALSF_GENERATIONS     1	/*!< Number of star particles that may be created per gas particle */
 #endif
 
-
+#ifdef LONG_INTEGER_TIME
+typedef  long long integertime;
+static MPI_Datatype MPI_TYPE_TIME = MPI_LONG_LONG;
+#define  TIMEBINS        39
+#else
 typedef  int integertime;
+static MPI_Datatype MPI_TYPE_TIME = MPI_INT;
 #define  TIMEBINS        29
-#define  TIMEBASE        (1<<TIMEBINS)  /*!< The simulated timespan is mapped onto the integer interval [0,TIMESPAN],
+#endif
+
+#define  TIMEBASE        (((integertime) 1)<<TIMEBINS)  /*!< The simulated timespan is mapped onto the integer interval [0,TIMESPAN],
                                          *   where TIMESPAN needs to be a power of 2. Note that (1<<28) corresponds
                                          *   to 2^29
                                          */
@@ -971,7 +972,16 @@ typedef MyDouble MyBigFloat;
 #define CPU_AGSDENSCOMM    37
 #define CPU_AGSDENSMISC    38
 #define CPU_SIDMSCATTER    39
-#define CPU_PARTS          40  /* this gives the number of parts above (must be last) */
+#define CPU_DYNDIFFMISC       40
+#define CPU_DYNDIFFCOMPUTE    41
+#define CPU_DYNDIFFWAIT       42
+#define CPU_DYNDIFFCOMM       43
+#define CPU_IMPROVDIFFMISC    44
+#define CPU_IMPROVDIFFCOMPUTE 45
+#define CPU_IMPROVDIFFWAIT    46
+#define CPU_IMPROVDIFFCOMM    47
+
+#define CPU_PARTS          48  /* this gives the number of parts above (must be last) */
 
 #define CPU_STRING_LEN 120
 
@@ -1333,7 +1343,10 @@ extern struct global_data_all_processes
 
     
 #ifdef DM_SIDM
-    MyDouble InteractionCrossSection;  /*!< self-interaction cross-section in [cm^2/g]*/
+    MyDouble DM_InteractionCrossSection;  /*!< self-interaction cross-section in [cm^2/g]*/
+    MyDouble DM_DissipationFactor;  /*!< dimensionless parameter governing efficiency of dissipation (1=dissipative, 0=elastic) */
+    MyDouble DM_KickPerCollision;  /*!< for exo-thermic DM reactions, this determines the energy gain 'per event': kick in km/s (equivalent to specific energy in erg/g) associated 'per event' */
+    MyDouble DM_InteractionVelocityDependence; /*!< power-law slope of velocity dependence of DM interaction cross-section */
 #endif
     
   int MaxPart;			/*!< This gives the maxmimum number of particles that can be stored on one processor. */
@@ -1374,6 +1387,7 @@ extern struct global_data_all_processes
   double InitGasTemp;		/*!< may be used to set the temperature in the IC's */
   double InitGasU;		/*!< the same, but converted to thermal energy per unit mass */
   double MinGasTemp;		/*!< may be used to set a floor for the gas temperature */
+
   double MinEgySpec;		/*!< the minimum allowed temperature expressed as energy per unit mass */
 #ifdef SPHAV_ARTIFICIAL_CONDUCTIVITY
   double ArtCondConstant;
@@ -1447,7 +1461,7 @@ extern struct global_data_all_processes
     TimeLastRestartFile,	/*!< cpu-time when last restart-file was written */
     TimeBetStatistics,		/*!< simulation time interval between computations of energy statistics */
     TimeLastStatistics;		/*!< simulation time when the energy statistics was computed the last time */
-  int NumCurrentTiStep;		/*!< counts the number of system steps taken up to this point */
+  integertime NumCurrentTiStep;		/*!< counts the number of system steps taken up to this point */
 
   /* Current time of the simulation, global step, and end of simulation */
 
@@ -1706,8 +1720,15 @@ extern struct global_data_all_processes
   double ViscosityAMin;
   double ViscosityAMax;
 #endif
+    
 #ifdef TURB_DIFFUSION
   double TurbDiffusion_Coefficient;
+#ifdef TURB_DIFF_DYNAMIC
+  double TurbDynamicDiffFac;
+  int TurbDynamicDiffIterations;
+  double TurbDynamicDiffSmoothing;
+  double TurbDynamicDiffMax;
+#endif
 #endif
   
 #if defined(CONDUCTION)
@@ -1780,6 +1801,7 @@ extern struct global_data_all_processes
   double Tillotson_EOS_params[7][12]; /*! < holds parameters for Tillotson EOS for solids */
 #endif
 
+
 #ifdef EOS_TABULATED
     char EosTable[100];
 #endif
@@ -1803,7 +1825,7 @@ extern struct global_data_all_processes
   int StSpectForm;
   int StSeed;
 #endif
-
+    
 #if defined(COOLING) && defined(COOL_GRACKLE)
     code_units GrackleUnits;
 #endif
@@ -1942,7 +1964,7 @@ extern ALIGN(32) struct particle_data
     
     
 #ifdef DM_SIDM
-    int dt_step_sidm; /*!< timestep used if self-interaction probabilities greater than 0.2 are found */
+    integertime dt_step_sidm; /*!< timestep used if self-interaction probabilities greater than 0.2 are found */
     long unsigned int NInteractions; /*!< Total number of interactions */
 #endif
 
@@ -1950,7 +1972,7 @@ extern ALIGN(32) struct particle_data
     float GravCost[GRAVCOSTLEVELS];   /*!< weight factor used for balancing the work-load */
     
 #ifdef WAKEUP
-    int dt_step;
+    integertime dt_step;
 #endif
     
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
@@ -1977,6 +1999,7 @@ extern ALIGN(32) struct particle_data
 #if defined(BLACK_HOLES)
 #define BPP(i) P[(i)]
 #endif
+
 
 
 /* the following struture holds data that is stored for each SPH particle in addition to the collisionless
@@ -2084,6 +2107,17 @@ extern struct sph_particle_data
     
     MyFloat MaxSignalVel;           /*!< maximum signal velocity (needed for time-stepping) */
     
+#ifdef CHIMES_STELLAR_FLUXES 
+    double Chimes_G0[CHIMES_LOCAL_UV_NBINS];    /*!< 6-13.6 eV flux, in Habing units */ 
+    double Chimes_fluxPhotIon[CHIMES_LOCAL_UV_NBINS];  /*!< ionising flux (>13.6 eV), in cm^-2 s^-1 */ 
+#ifdef CHIMES_HII_REGIONS 
+  double Chimes_G0_HII[CHIMES_LOCAL_UV_NBINS]; 
+  double Chimes_fluxPhotIon_HII[CHIMES_LOCAL_UV_NBINS]; 
+#endif // CHIMES_HII_REGIONS 
+#endif // CHIMES_STELLAR_FLUXES 
+#ifdef CHIMES_TURB_DIFF_IONS 
+  double ChimesNIons[TOTSIZE]; 
+#endif // CHIMES_TURB_DIFF_IONS 
     
 #if defined(TURB_DRIVING) || defined(OUTPUT_VORTICITY)
    MyFloat Vorticity[3];
@@ -2117,6 +2151,9 @@ extern struct sph_particle_data
 #endif
 #endif
     
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE_HII_REGIONS) 
+  MyFloat DelayTimeHII;             /*!< flag indicating particle is ionized by nearby star */
+#endif
 #ifdef GALSF_FB_TURNOFF_COOLING
   MyFloat DelayTimeCoolingSNe;      /*!< flag indicating cooling is suppressed b/c heated by SNe */
 #endif
@@ -2131,7 +2168,13 @@ extern struct sph_particle_data
 
 #ifdef TURB_DIFFUSION
   MyFloat TD_DiffCoeff;             /*!< effective diffusion coefficient for sub-grid turbulent diffusion */
+#ifdef TURB_DIFF_DYNAMIC
+  MyDouble h_turb;
+  MyDouble MagShear;
+  MyFloat TD_DynDiffCoeff;          /*!< improved Smag. coefficient (squared) for sub-grid turb. diff. - D. Rennehan */
 #endif
+#endif
+    
 #if defined(SPHAV_CD10_VISCOSITY_SWITCH)
   MyFloat NV_DivVel;                /*!< quantities specific to the Cullen & Dehnen viscosity switch */
   MyFloat NV_dt_DivVel;
@@ -2253,6 +2296,22 @@ extern struct sph_particle_data
     gr_float grHDI;
 #endif
 #endif
+   
+#ifdef TURB_DIFF_DYNAMIC
+  MyDouble VelShear_bar[3][3];
+  MyDouble MagShear_bar;
+  MyDouble Velocity_bar[3];
+  MyDouble Velocity_hat[3];
+  MyFloat FilterWidth_bar;
+  MyFloat MaxDistance_for_grad;
+  MyDouble Norm_hat;
+  MyDouble Dynamic_numerator;
+  MyDouble Dynamic_denominator;
+#ifdef TURB_DIFF_DYNAMIC_ERROR
+  MyDouble TD_DynDiffCoeff_error;
+  MyDouble TD_DynDiffCoeff_error_default;
+#endif
+#endif
     
 }
   *SphP,				/*!< holds SPH particle data on local processor */
@@ -2334,6 +2393,10 @@ extern struct gravdata_out
 #ifdef RT_OTVET
     MyLongDouble ET[N_RT_FREQ_BINS][6];
 #endif
+#ifdef CHIMES_STELLAR_FLUXES 
+    double Chimes_G0[CHIMES_LOCAL_UV_NBINS]; 
+    double Chimes_fluxPhotIon[CHIMES_LOCAL_UV_NBINS]; 
+#endif 
 #ifdef EVALPOTENTIAL
     MyLongDouble Potential;
 #endif
@@ -2376,7 +2439,6 @@ extern struct info_block
 #define BHPOTVALUEINIT 1.0e30
 
 extern int N_active_loc_BHs;    /*!< number of active black holes on the LOCAL processor */
-
 
 extern struct blackhole_temp_particle_data       // blackholedata_topass
 {
@@ -2570,6 +2632,8 @@ enum iofields
   IO_AGS_SOFT,
   IO_AGS_RHO,
   IO_AGS_QPT,
+  IO_AGS_PSI_RE,
+  IO_AGS_PSI_IM,
   IO_AGS_ZETA,
   IO_AGS_OMEGA,
   IO_AGS_CORR,
@@ -2589,7 +2653,11 @@ enum iofields
   IO_grDI,
   IO_grDII,
   IO_grHDI,
-  IO_OSTAR,  
+  IO_OSTAR, 
+  IO_TURB_DYNAMIC_COEFF,
+  IO_TURB_DIFF_COEFF,
+  IO_DYNERROR,
+  IO_DYNERRORDEFAULT, 
   IO_LASTENTRY			/* This should be kept - it signals the end of the list */
 };
 
@@ -2689,6 +2757,10 @@ extern ALIGN(32) struct NODE
 
 #ifdef RT_USE_GRAVTREE
   MyFloat stellar_lum[N_RT_FREQ_BINS]; /*!< luminosity in the node*/
+#ifdef CHIMES_STELLAR_FLUXES 
+  double chimes_stellar_lum_G0[CHIMES_LOCAL_UV_NBINS]; 
+  double chimes_stellar_lum_ion[CHIMES_LOCAL_UV_NBINS]; 
+#endif 
 #endif
 
 

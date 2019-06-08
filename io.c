@@ -38,6 +38,13 @@ void savepositions(int num)
     int n, filenr, gr, ngroups, masterTask, lastTask;
     
     CPU_Step[CPU_MISC] += measure_time();
+
+#ifdef CHIMES_REDUCED_OUTPUT 
+    if (num % N_chimes_full_output_freq == 0)
+      Chimes_incl_full_output = 1; 
+    else 
+      Chimes_incl_full_output = 0; 
+#endif 
     
     rearrange_particle_sequence();
     /* ensures that new tree will be constructed */
@@ -519,6 +526,7 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
                 }
 #endif
             break;
+
             
         case IO_POT:		/* gravitational potential */
 #if defined(OUTPUT_POTENTIAL)  || defined(FLAG_NOT_IN_PUBLIC_CODE_RESHUFFLE_AND_POTENTIAL)
@@ -890,6 +898,17 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
 #endif
             break;
 
+        case IO_TURB_DYNAMIC_COEFF:
+#ifdef TURB_DIFF_DYNAMIC
+            for (n = 0; n < pc; pindex++) {
+                if (P[pindex].Type == type) {
+                    *fp++ = SphP[pindex].TD_DynDiffCoeff;
+                    n++;
+                }
+            }
+#endif
+            break;
+
         case IO_EOSYE:
 #ifdef EOS_CARRIES_YE
             for(n = 0; n < pc; pindex++)
@@ -1057,6 +1076,10 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             break;
         case IO_AGS_QPT:        /* quantum potential (Q) */
             break;
+        case IO_AGS_PSI_RE:        /* real part of wavefunction */
+            break;
+        case IO_AGS_PSI_IM:        /* imaginary part of wavefunction */
+            break;
         case IO_AGS_ZETA:		/* Adaptive Gravitational Softening: zeta */
 #if defined(ADAPTIVE_GRAVSOFT_FORALL) && defined(AGS_OUTPUTZETA)
             for(n = 0; n < pc; pindex++)
@@ -1201,8 +1224,41 @@ void fill_write_buffer(enum iofields blocknr, int *startindex, int pc, int type)
             }
 #endif
             break;
+
+    case IO_TURB_DIFF_COEFF:
+#ifdef TURB_DIFF_DYNAMIC
+        for (n = 0; n < pc; pindex++) {
+            if (P[pindex].Type == type) {
+                *fp++ = SphP[pindex].TD_DiffCoeff;
+                n++;
+            }
+        }
+#endif
+
+        break;
             
-            
+    case IO_DYNERROR:
+#ifdef TURB_DIFF_DYNAMIC_ERROR
+        for (n = 0; n < pc; pindex++) {
+            if (P[pindex].Type == type) {
+                *fp++ = SphP[pindex].TD_DynDiffCoeff_error;
+                n++;
+            }
+        }
+#endif
+        break;
+
+    case IO_DYNERRORDEFAULT:
+#ifdef TURB_DIFF_DYNAMIC_ERROR
+        for (n = 0; n < pc; pindex++) {
+            if (P[pindex].Type == type) {
+                *fp++ = SphP[pindex].TD_DynDiffCoeff_error_default;
+                n++;
+            }
+        }
+#endif
+        break;
+ 
         case IO_LASTENTRY:
             endrun(213);
             break;
@@ -1333,6 +1389,8 @@ int get_bytes_per_blockelement(enum iofields blocknr, int mode)
         case IO_AGS_SOFT:
         case IO_AGS_RHO:
         case IO_AGS_QPT:
+        case IO_AGS_PSI_RE:
+        case IO_AGS_PSI_IM:
         case IO_AGS_ZETA:
         case IO_AGS_OMEGA:
         case IO_AGS_CORR:
@@ -1350,6 +1408,10 @@ int get_bytes_per_blockelement(enum iofields blocknr, int mode)
         case IO_grDI:
         case IO_grDII:
         case IO_grHDI:
+        case IO_TURB_DYNAMIC_COEFF:
+        case IO_TURB_DIFF_COEFF:
+        case IO_DYNERROR:
+        case IO_DYNERRORDEFAULT:
             if(mode)
                 bytes_per_blockelement = sizeof(MyInputFloat);
             else
@@ -1402,6 +1464,8 @@ int get_bytes_per_blockelement(enum iofields blocknr, int mode)
                 bytes_per_blockelement = (NUM_METAL_SPECIES) * sizeof(MyOutputFloat);
 #endif
             break;
+
+            
             
             
         case IO_EOS_STRESS_TENSOR:
@@ -1602,6 +1666,8 @@ int get_values_per_blockelement(enum iofields blocknr)
         case IO_AGS_SOFT:
         case IO_AGS_RHO:
         case IO_AGS_QPT:
+        case IO_AGS_PSI_RE:
+        case IO_AGS_PSI_IM:
         case IO_AGS_ZETA:
         case IO_AGS_OMEGA:
         case IO_AGS_CORR:
@@ -1620,6 +1686,10 @@ int get_values_per_blockelement(enum iofields blocknr)
         case IO_grDI:
         case IO_grDII:
         case IO_grHDI:
+        case IO_TURB_DYNAMIC_COEFF:
+        case IO_TURB_DIFF_COEFF:
+        case IO_DYNERROR:
+        case IO_DYNERRORDEFAULT:
             values = 1;
             break;
 
@@ -1658,7 +1728,7 @@ int get_values_per_blockelement(enum iofields blocknr)
             values = 0;
 #endif
             break;
-            
+
             
         case IO_IMF:
 #ifdef GALSF_SFR_IMF_VARIATION
@@ -1744,6 +1814,8 @@ long get_particles_in_block(enum iofields blocknr, int *typelist)
         case IO_AGS_SOFT:
         case IO_AGS_RHO:
         case IO_AGS_QPT:
+        case IO_AGS_PSI_RE:
+        case IO_AGS_PSI_IM:
         case IO_AGS_ZETA:
         case IO_AGS_OMEGA:
         case IO_AGS_CORR:
@@ -1833,6 +1905,10 @@ long get_particles_in_block(enum iofields blocknr, int *typelist)
         case IO_grDI:
         case IO_grDII:
         case IO_grHDI:
+        case IO_TURB_DYNAMIC_COEFF:
+        case IO_TURB_DIFF_COEFF:
+        case IO_DYNERROR:
+        case IO_DYNERRORDEFAULT:
             for(i = 1; i < 6; i++)
                 typelist[i] = 0;
             return ngas;
@@ -1848,7 +1924,7 @@ long get_particles_in_block(enum iofields blocknr, int *typelist)
             if(i != 4)
                 typelist[i] = 0;
             return nstars;
-#endif
+#endif // BLACK_HOLES  
             break;
             
         case IO_OSTAR:
@@ -1902,6 +1978,7 @@ long get_particles_in_block(enum iofields blocknr, int *typelist)
                     typelist[i] = 0;
             return ngas + nstars;
             break;
+
             
         case IO_BHMASS:
         case IO_BHMASSALPHA:
@@ -2018,7 +2095,7 @@ int blockpresent(enum iofields blocknr)
 #endif
             return 0;
             break;
-            
+
         case IO_GRAINSIZE:
 #ifdef GRAIN_FLUID
             return 1;
@@ -2034,7 +2111,7 @@ int blockpresent(enum iofields blocknr)
 #endif
             return 0;
             break;
-            
+
             
         case IO_DELAYTIME:
 #ifdef GALSF_SUBGRID_WINDS
@@ -2301,9 +2378,8 @@ int blockpresent(enum iofields blocknr)
             
         case IO_TIDALTENSORPS:
             return 0;
-        case IO_GDE_DISTORTIONTENSOR:
-            return 0;
             
+        case IO_GDE_DISTORTIONTENSOR:
         case IO_CAUSTIC_COUNTER:
             return 0;
             
@@ -2311,8 +2387,6 @@ int blockpresent(enum iofields blocknr)
             return 0;
             
         case IO_STREAM_DENSITY:
-            return 0;
-            
         case IO_PHASE_SPACE_DETERMINANT:
             return 0;
             
@@ -2323,8 +2397,6 @@ int blockpresent(enum iofields blocknr)
             return 0;
             
         case IO_SHEET_ORIENTATION:
-            return 0;
-            
         case IO_INIT_DENSITY:
             return 0;
             
@@ -2341,36 +2413,36 @@ int blockpresent(enum iofields blocknr)
 #else
             return 0;
 #endif
+
         case IO_PRESSURE:
-#ifdef EOS_GENERAL
-            return 1;
-#else
-            return 0;
-#endif
         case IO_EOSCS:
 #ifdef EOS_GENERAL
             return 1;
 #else
             return 0;
 #endif
+
         case IO_EOS_STRESS_TENSOR:
 #ifdef EOS_ELASTIC
             return 1;
 #else
             return 0;
 #endif
+
         case IO_EOSCOMP:
 #ifdef EOS_TILLOTSON
             return 1;
 #else
             return 0;
 #endif
+
         case IO_EOSABAR:
 #ifdef EOS_CARRIES_ABAR
             return 1;
 #else
             return 0;
 #endif
+
         case IO_EOSYE:
 #ifdef EOS_CARRIES_YE
             return 1;
@@ -2387,7 +2459,6 @@ int blockpresent(enum iofields blocknr)
 #else
             return 0;
 #endif
-
             
         case IO_EDDINGTON_TENSOR:
 #if defined(RADTRANSFER)
@@ -2420,10 +2491,9 @@ int blockpresent(enum iofields blocknr)
             break;
 
         case IO_AGS_RHO:
-            return 0;
-            break;
-
         case IO_AGS_QPT:
+        case IO_AGS_PSI_RE:
+        case IO_AGS_PSI_IM:
             return 0;
             break;
 
@@ -2436,25 +2506,12 @@ int blockpresent(enum iofields blocknr)
             break;
             
         case IO_AGS_OMEGA:
-            return 0;
-            break;
-            
         case IO_AGS_CORR:
-            return 0;
-            break;
-            
         case IO_AGS_NGBS:
-            return 0;
-            break;
-            
         case IO_MG_PHI:
-            return 0;
-            break;
-            
         case IO_MG_ACCEL:
             return 0;
             break;
-            
             
         case IO_grHI:
         case IO_grHII:
@@ -2487,8 +2544,24 @@ int blockpresent(enum iofields blocknr)
             return 0;
 #endif
             break;
-            
-            
+
+    case IO_TURB_DYNAMIC_COEFF:
+    case IO_TURB_DIFF_COEFF:
+#ifdef TURB_DIFF_DYNAMIC
+        return 1;
+#else
+        return 0;
+#endif
+        break;
+
+    case IO_DYNERRORDEFAULT:
+    case IO_DYNERROR:
+#ifdef TURB_DIFF_DYNAMIC_ERROR
+        return 1;
+#else
+        return 0;
+#endif
+        break; 
         case IO_LASTENTRY:
             return 0;			/* will not occur */
     }
@@ -2801,6 +2874,12 @@ void get_Tab_IO_Label(enum iofields blocknr, char *label)
         case IO_AGS_QPT:
             strncpy(label, "AQPT", 4);
             break;
+        case IO_AGS_PSI_RE:
+            strncpy(label, "PSIR", 4);
+            break;
+        case IO_AGS_PSI_IM:
+            strncpy(label, "PSII", 4);
+            break;
         case IO_AGS_ZETA:
             strncpy(label, "AGSZ", 4);
             break;
@@ -2858,7 +2937,18 @@ void get_Tab_IO_Label(enum iofields blocknr, char *label)
         case IO_grHDI:
             strncpy(label, "gHDI", 4);
             break;
-            
+        case IO_TURB_DYNAMIC_COEFF:
+            strncpy(label, "tdyn", 4);
+            break;
+        case IO_TURB_DIFF_COEFF:
+            strncpy(label, "turb", 4);
+            break;
+        case IO_DYNERROR:
+            strncpy(label, "derr", 4);
+            break;
+        case IO_DYNERRORDEFAULT:
+            strncpy(label, "derd", 4);
+            break; 
             
         case IO_LASTENTRY:
             endrun(217);
@@ -3167,6 +3257,12 @@ void get_dataset_name(enum iofields blocknr, char *buf)
         case IO_AGS_QPT:
             strcpy(buf, "AGS-QuantumPotentialQ");
             break;
+        case IO_AGS_PSI_RE:
+            strcpy(buf, "WavefunctionPsi-Real");
+            break;
+        case IO_AGS_PSI_IM:
+            strcpy(buf, "WavefunctionPsi-Imag");
+            break;
         case IO_AGS_ZETA:
             strcpy(buf, "AGS-Zeta");
             break;
@@ -3224,7 +3320,18 @@ void get_dataset_name(enum iofields blocknr, char *buf)
         case IO_grHDI:
             strcpy(buf, "GrackleHDI");
             break;
-            
+        case IO_TURB_DYNAMIC_COEFF:
+            strcpy(buf, "DynSmagCoeff");
+            break;
+        case IO_TURB_DIFF_COEFF:
+            strcpy(buf, "TurbDiffCoeff");
+            break;
+        case IO_DYNERROR:
+            strcpy(buf, "DynamicError");
+            break;
+        case IO_DYNERRORDEFAULT:
+            strcpy(buf, "DynamicErrorDefault");
+            break;
         case IO_LASTENTRY:
             endrun(218);
             break;

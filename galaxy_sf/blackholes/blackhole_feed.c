@@ -97,7 +97,7 @@ void blackhole_feed_loop(void)
             BlackholeDataIn[j].Density = BPP(place).DensAroundStar;
             BlackholeDataIn[j].Mdot = BPP(place).BH_Mdot;
 #ifndef WAKEUP
-            BlackholeDataIn[j].Dt = (P[place].TimeBin ? (1 << P[place].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a;
+            BlackholeDataIn[j].Dt = (P[place].TimeBin ? (((integertime) 1) << P[place].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a;
 #else
             BlackholeDataIn[j].Dt = P[place].dt_step * All.Timebase_interval / All.cf_hubble_a;
 #endif
@@ -231,7 +231,7 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
         rho = P[target].DensAroundStar;       // DAA: DensAroundStar is not defined in BHP->BPP...
         mdot = BPP(target).BH_Mdot;
 #ifndef WAKEUP
-        dt = (P[target].TimeBin ? (1 << P[target].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a;
+        dt = (P[target].TimeBin ? (((integertime) 1) << P[target].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a;
 #else
         dt = P[target].dt_step * All.Timebase_interval / All.cf_hubble_a;
 #endif
@@ -330,7 +330,7 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
     {
         while(startnode >= 0)
         {
-            numngb = ngb_treefind_variable_targeted(pos, h_i, target, &startnode, mode, nexport, nSend_local, BH_NEIGHBOR_BITFLAG); // BH_NEIGHBOR_BITFLAG defines which types of particles we search for
+            numngb = ngb_treefind_pairs_targeted(pos, h_i, target, &startnode, mode, nexport, nSend_local, BH_NEIGHBOR_BITFLAG); // BH_NEIGHBOR_BITFLAG defines which types of particles we search for
             if(numngb < 0) return -1;
             
             for(n = 0; n < numngb; n++)
@@ -343,7 +343,7 @@ int blackhole_feed_evaluate(int target, int mode, int *nexport, int *nSend_local
                     NEAREST_XYZ(dpos[0],dpos[1],dpos[2],-1);
 #endif
                     r2=0; for(k=0;k<3;k++) {r2 += dpos[k]*dpos[k];}
-                    if(r2 < h_i2)
+                    if(r2 < h_i2 || r2 < PPP[j].Hsml*PPP[j].Hsml)
                     {
                         vrel=0; for(k=0;k<3;k++) {vrel += (P[j].Vel[k] - velocity[k])*(P[j].Vel[k] - velocity[k]);}
                         r=sqrt(r2); vrel=sqrt(vrel)/All.cf_atime; vesc=bh_vesc(j,mass,r); /* do this once and use below */

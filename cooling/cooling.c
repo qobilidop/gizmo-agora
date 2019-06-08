@@ -9,7 +9,6 @@
 
 #include "./cooling.h"
 
-
 /*
  * This file contains the routines for optically-thin cooling (generally aimed towards simulations of the ISM, 
  *   galaxy formation, and cosmology). A wide range of heating/cooling processes are included, including 
@@ -39,10 +38,6 @@ static float *SpCoolTable0, *SpCoolTable1;
 #endif
 /* these are constants of the UV background at a given redshift: they are interpolated from TREECOOL but then not modified particle-by-particle */
 static double J_UV = 0, gJH0 = 0, gJHep = 0, gJHe0 = 0, epsH0 = 0, epsHep = 0, epsHe0 = 0;
-
-
-
-
 
 
 
@@ -83,19 +78,15 @@ void cooling_parent_routine(void)
     } /* omp bracket */
 }
 
-
-
-
-
 /* subroutine which actually sends the particle data to the cooling routine and updates the entropies */
 void do_the_cooling_for_particle(int i)
 {
     double unew;
-    double dt = (P[i].TimeBin ? (1 << P[i].TimeBin) : 0) * All.Timebase_interval;
+    double dt = (P[i].TimeBin ? (((integertime) 1) << P[i].TimeBin) : 0) * All.Timebase_interval;
     double dtime = dt / All.cf_hubble_a; /*  the actual time-step */
+
     if((P[i].TimeBin)&&(dt>0)&&(P[i].Mass>0)&&(P[i].Type==0))  // upon start-up, need to protect against dt==0 //
     {
-        
         double uold = DMAX(All.MinEgySpec, SphP[i].InternalEnergy);
         
 #ifndef COOLING_OPERATOR_SPLIT
@@ -143,7 +134,7 @@ void do_the_cooling_for_particle(int i)
 
         
         
-        /* InternalEnergy, InternalEnergyPred, Pressure, ne are now immediately updated; however, if COOLING_OPERATOR_SPLIT
+	/* InternalEnergy, InternalEnergyPred, Pressure, ne are now immediately updated; however, if COOLING_OPERATOR_SPLIT
          is set, then DtInternalEnergy carries information from the hydro loop which is only half-stepped here, so is -not- updated. 
          if the flag is not set (default), then the full hydro-heating is accounted for in the cooling loop, so it should be re-zeroed here */
         SphP[i].InternalEnergy = unew;
@@ -153,7 +144,12 @@ void do_the_cooling_for_particle(int i)
         SphP[i].DtInternalEnergy = 0;
 #endif
         
-        
+       
+#if defined(FLAG_NOT_IN_PUBLIC_CODE) || defined(FLAG_NOT_IN_PUBLIC_CODE_HII_REGIONS) 
+        /* count off time which has passed since ionization 'clock' */
+        if(SphP[i].DelayTimeHII > 0) SphP[i].DelayTimeHII -= dtime;
+        if(SphP[i].DelayTimeHII < 0) SphP[i].DelayTimeHII = 0;
+#endif // GALSF_FB_FIRE_RT_HIIHEATING || CHIMES_HII_REGIONS 
         
     } // closes if((P[i].TimeBin)&&(dt>0)&&(P[i].Mass>0)&&(P[i].Type==0)) check
 }
@@ -185,17 +181,17 @@ double DoCooling(double u_old, double rho, double dt, double ne_guess, int targe
 #endif
     return DMAX(u,All.MinEgySpec);
 #endif
-    
+
     rho *= All.UnitDensity_in_cgs * All.HubbleParam * All.HubbleParam;	/* convert to physical cgs units */
     u_old *= All.UnitPressure_in_cgs / All.UnitDensity_in_cgs;
     dt *= All.UnitTime_in_s / All.HubbleParam;
     double nHcgs = HYDROGEN_MASSFRAC * rho / PROTONMASS;	/* hydrogen number dens in cgs units */
     ratefact = nHcgs * nHcgs / rho;
-    
+
     u = u_old; u_lower = u; u_upper = u; /* initialize values */
     LambdaNet = CoolingRateFromU(u, rho, ne_guess, target);
 
-    /* bracketing */
+ /* bracketing */
     if(u - u_old - ratefact * LambdaNet * dt < 0)	/* heating */
     {
         u_upper *= sqrt(1.1); u_lower /= sqrt(1.1);
@@ -246,7 +242,6 @@ double DoCooling(double u_old, double rho, double dt, double ne_guess, int targe
 
 
 
-
 /* returns cooling time. 
  * NOTE: If we actually have heating, a cooling time of 0 is returned.
  */
@@ -263,7 +258,7 @@ double GetCoolingTime(double u_old, double rho, double ne_guess, int target)
     double LambdaNet = CoolingRateFromU(u_old, rho, ne_guess, target);
     if(LambdaNet >= 0) {return 0;} /* net heating due to UV background */
     return u_old / (-(nHcgs * nHcgs / rho) * LambdaNet) * All.HubbleParam / All.UnitTime_in_s;
-#endif
+#endif 
 }
 
 
@@ -321,10 +316,9 @@ double DoInstabilityCooling(double m_old, double u, double rho, double dt, doubl
 
 
 
-
 double get_mu(double T_guess, double rho, double *ne_guess, int target)
 {
-    double X=HYDROGEN_MASSFRAC, Y=1.-X, Z=0, fmol;
+ double X=HYDROGEN_MASSFRAC, Y=1.-X, Z=0, fmol;
     
 #ifdef METALS
     if(target >= 0)
@@ -344,7 +338,6 @@ double get_mu(double T_guess, double rho, double *ne_guess, int target)
     return 1. / ( X*(1-0.5*fmol) + Y/4. + *ne_guess*HYDROGEN_MASSFRAC + Z/(16.+12.*fmol) ); // since our ne is defined in some routines with He, should multiply by universal
 }
 
-
 double yhelium(int target)
 {
 #ifdef COOL_METAL_LINES_BY_SPECIES
@@ -353,8 +346,6 @@ double yhelium(int target)
     return YHELIUM_0;
 #endif
 }
-
-
 
 /* this function determines the electron fraction, and hence the mean molecular weight. With it arrives at a self-consistent temperature.
  * Ionization abundances and the rates for the emission are also computed */
@@ -395,8 +386,6 @@ double convert_u_to_temp(double u, double rho, int target, double *ne_guess, dou
     if(log10(temp)<Tmin) temp=pow(10.0,Tmin);
     return temp;
 }
-
-
 
 /* this function computes the actual ionization states, relative abundances, and returns the ionization/recombination rates if needed */
 double find_abundances_and_rates(double logT, double rho, int target, double shieldfac, int return_cooling_mode,
@@ -466,7 +455,7 @@ double find_abundances_and_rates(double logT, double rho, int target, double shi
     }
     n_elec = *ne_guess; neold = n_elec; niter = 0;
     double dt = 0, fac_noneq_cgs = 0, necgs = n_elec * nHcgs; /* more initialized quantities */
-    if(target >= 0) {dt = (P[target].TimeBin ? (1 << P[target].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a;} // dtime [code units]
+    if(target >= 0) {dt = (P[target].TimeBin ? (((integertime) 1) << P[target].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a;} // dtime [code units]
     fac_noneq_cgs = (dt * All.UnitTime_in_s / All.HubbleParam) * necgs; // factor needed below to asses whether timestep is larger/smaller than recombination time
     
 #if defined(RT_CHEM_PHOTOION)
@@ -656,7 +645,6 @@ double find_abundances_and_rates(double logT, double rho, int target, double shi
 
 
 
-
 /*  this function first computes the self-consistent temperature and abundance ratios, and then it calculates (heating rate-cooling rate)/n_h^2 in cgs units */
 double CoolingRateFromU(double u, double rho, double ne_guess, int target)
 {
@@ -664,6 +652,7 @@ double CoolingRateFromU(double u, double rho, double ne_guess, int target)
     double temp = convert_u_to_temp(u, rho, target, &ne_guess, &nH0_guess, &nHp_guess, &nHe0_guess, &nHep_guess, &nHepp_guess);
     return CoolingRate(log10(temp), rho, ne_guess, target);
 }
+
 
 
 /*  this function computes the self-consistent temperature and electron fraction */ 
@@ -679,9 +668,7 @@ double ThermalProperties(double u, double rho, int target, double *mu_guess, dou
 
 
 
-
 extern FILE *fd;
-
 
 
 
@@ -729,7 +716,7 @@ double CoolingRate(double logT, double rho, double n_elec_guess, int target)
     if(target >= 0)
     {
         double L_particle = Get_Particle_Size(target)*All.cf_atime; // particle effective size/slab thickness
-        double dt = (P[target].TimeBin ? (1 << P[target].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a; // dtime [code units]
+        double dt = (P[target].TimeBin ? (((integertime) 1) << P[target].TimeBin) : 0) * All.Timebase_interval / All.cf_hubble_a; // dtime [code units]
         Sigma_particle = P[target].Mass / (M_PI*L_particle*L_particle); // effective surface density through particle
         abs_per_kappa_dt = RT_SPEEDOFLIGHT_REDUCTION * (C/All.UnitVelocity_in_cm_per_s) * (SphP[target].Density*All.cf_a3inv) * dt; // fractional absorption over timestep
         cx_to_kappa = HYDROGEN_MASSFRAC / PROTONMASS * All.UnitMass_in_g / All.HubbleParam; // pre-factor for converting cross sections into opacities
@@ -1011,8 +998,8 @@ void MakeCoolingTable(void)
 {
     int i;
     double T,Tfact;
-    
-    if(All.MinGasTemp > 0.0) {Tmin = log10(All.MinGasTemp);} else {Tmin=1.0;}    
+
+    if(All.MinGasTemp > 0.0) {Tmin = log10(All.MinGasTemp);} else {Tmin=1.0;} 
     deltaT = (Tmax - Tmin) / NCOOLTAB;
     //double ethmin = pow(10.0, Tmin) * (1. + YHELIUM_0) / ((1. + 4. * YHELIUM_0) * (PROTONMASS / BOLTZMANN) * GAMMA_MINUS1); /* minimum internal energy for neutral gas */
     /* minimum internal energy for neutral gas */
@@ -1148,6 +1135,7 @@ static float inlogz[TABLESIZE];
 static float gH0[TABLESIZE], gHe[TABLESIZE], gHep[TABLESIZE];
 static float eH0[TABLESIZE], eHe[TABLESIZE], eHep[TABLESIZE];
 static int nheattab;		/* length of table */
+
 
 void ReadIonizeParams(char *fname)
 {
@@ -1346,12 +1334,11 @@ void IonizeParamsFunction(void)
 
 
 
-
 void InitCool(void)
 {
     if(ThisTask == 0)
         printf("Initializing cooling ...\n");
-    
+
     All.Time = All.TimeBegin;
     set_cosmo_factors_for_current_time();
     
@@ -1367,7 +1354,6 @@ void InitCool(void)
     LoadMultiSpeciesTables();
 #endif
 }
-
 
 
 
@@ -1434,8 +1420,6 @@ double GetLambdaSpecies(long k_index, long index_x0y0, long index_x0y1, long ind
 }
 
 #endif // COOL_METAL_LINES_BY_SPECIES
-
-
 
 
 

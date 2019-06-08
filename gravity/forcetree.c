@@ -526,7 +526,16 @@ void force_update_node_recursive(int no, int sib, int father)
     MyFloat s_dm[3], vs_dm[3], mass_dm;
 #endif
 #ifdef RT_USE_GRAVTREE
-    MyFloat stellar_lum[N_RT_FREQ_BINS], sigma_eff=0;
+    MyFloat stellar_lum[N_RT_FREQ_BINS], sigma_eff=0; 
+#ifdef CHIMES_STELLAR_FLUXES 
+    double chimes_stellar_lum_G0[CHIMES_LOCAL_UV_NBINS]; 
+    double chimes_stellar_lum_ion[CHIMES_LOCAL_UV_NBINS]; 
+    for (j = 0; j < CHIMES_LOCAL_UV_NBINS; j++) 
+      {
+	chimes_stellar_lum_G0[j] = 0.0; 
+	chimes_stellar_lum_ion[j] = 0.0; 
+      }
+#endif 
     for(j=0;j<N_RT_FREQ_BINS;j++) {stellar_lum[j]=0;}
 #ifdef RT_LEBRON
     sigma_eff = 0.955 * All.UnitMass_in_g*All.HubbleParam / (All.UnitLength_in_cm*All.UnitLength_in_cm); // (should be in physical, not comoving units)
@@ -628,6 +637,13 @@ void force_update_node_recursive(int no, int sib, int father)
                         vs[2] += (Nodes[p].u.d.mass * Extnodes[p].vs[2]);
 #ifdef RT_USE_GRAVTREE
                         for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += (Nodes[p].stellar_lum[k]);}
+#ifdef CHIMES_STELLAR_FLUXES 
+			for (k = 0; k < CHIMES_LOCAL_UV_NBINS; k++) 
+			  {
+			    chimes_stellar_lum_G0[k] += Nodes[p].chimes_stellar_lum_G0[k]; 
+			    chimes_stellar_lum_ion[k] += Nodes[p].chimes_stellar_lum_ion[k]; 
+			  }
+#endif 
 #endif
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
                         double l_tot=0; for(k=0;k<N_RT_FREQ_BINS;k++) {l_tot += (Nodes[p].stellar_lum[k]);}
@@ -696,10 +712,23 @@ void force_update_node_recursive(int no, int sib, int father)
                     
 #ifdef RT_USE_GRAVTREE
                     double lum[N_RT_FREQ_BINS];
+#ifdef CHIMES_STELLAR_FLUXES 
+		    double chimes_lum_G0[CHIMES_LOCAL_UV_NBINS]; 
+		    double chimes_lum_ion[CHIMES_LOCAL_UV_NBINS]; 
+		    int active_check = rt_get_source_luminosity(p,sigma_eff,lum,chimes_lum_G0, chimes_lum_ion);
+#else 
                     int active_check = rt_get_source_luminosity(p,sigma_eff,lum);
+#endif 
                     if(active_check)
                     {
                         double l_sum = 0; for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += lum[k]; l_sum += lum[k];}
+#ifdef CHIMES_STELLAR_FLUXES 
+			for (k = 0; k < CHIMES_LOCAL_UV_NBINS; k++) 
+			  {
+			    chimes_stellar_lum_G0[k] += chimes_lum_G0[k]; 
+			    chimes_stellar_lum_ion[k] += chimes_lum_ion[k]; 
+			  }
+#endif 
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
                         rt_source_lum_s[0] += (l_sum * pa->Pos[0]);
                         rt_source_lum_s[1] += (l_sum * pa->Pos[1]);
@@ -854,6 +883,13 @@ void force_update_node_recursive(int no, int sib, int father)
         Nodes[no].GravCost = 0;
 #ifdef RT_USE_GRAVTREE
         for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = stellar_lum[k];}
+#ifdef CHIMES_STELLAR_FLUXES 
+	for (k = 0; k < CHIMES_LOCAL_UV_NBINS; k++) 
+	  {
+	    Nodes[no].chimes_stellar_lum_G0[k] = chimes_stellar_lum_G0[k]; 
+	    Nodes[no].chimes_stellar_lum_ion[k] = chimes_stellar_lum_ion[k]; 
+	  }
+#endif
 #endif
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
         Nodes[no].rt_source_lum_s[0] = rt_source_lum_s[0];
@@ -961,6 +997,10 @@ void force_exchange_pseudodata(void)
 #endif
 #ifdef RT_USE_GRAVTREE
         MyFloat stellar_lum[N_RT_FREQ_BINS];
+#ifdef CHIMES_STELLAR_FLUXES 
+        double chimes_stellar_lum_G0[CHIMES_LOCAL_UV_NBINS]; 
+        double chimes_stellar_lum_ion[CHIMES_LOCAL_UV_NBINS]; 
+#endif 
 #endif
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
         MyFloat rt_source_lum_s[3];
@@ -1020,6 +1060,13 @@ void force_exchange_pseudodata(void)
 #endif
 #ifdef RT_USE_GRAVTREE
             int k; for(k=0;k<N_RT_FREQ_BINS;k++) {DomainMoment[i].stellar_lum[k] = Nodes[no].stellar_lum[k];}
+#ifdef CHIMES_STELLAR_FLUXES 
+	    for (k = 0; k < CHIMES_LOCAL_UV_NBINS; k++) 
+	      {
+		DomainMoment[i].chimes_stellar_lum_G0[k] = Nodes[no].chimes_stellar_lum_G0[k]; 
+		DomainMoment[i].chimes_stellar_lum_ion[k] = Nodes[no].chimes_stellar_lum_ion[k]; 
+	      }
+#endif 
 #endif
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
             DomainMoment[i].rt_source_lum_s[0] = Nodes[no].rt_source_lum_s[0];
@@ -1101,6 +1148,13 @@ void force_exchange_pseudodata(void)
 #endif
 #ifdef RT_USE_GRAVTREE
                     int k; for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = DomainMoment[i].stellar_lum[k];}
+#ifdef CHIMES_STELLAR_FLUXES 
+		    for (k = 0; k < CHIMES_LOCAL_UV_NBINS; k++) 
+		      {
+			Nodes[no].chimes_stellar_lum_G0[k] = DomainMoment[i].chimes_stellar_lum_G0[k]; 
+			Nodes[no].chimes_stellar_lum_ion[k] = DomainMoment[i].chimes_stellar_lum_ion[k]; 
+		      }
+#endif 
 #endif
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
                     Nodes[no].rt_source_lum_s[0] = DomainMoment[i].rt_source_lum_s[0];
@@ -1149,6 +1203,15 @@ void force_treeupdate_pseudos(int no)
     
 #ifdef RT_USE_GRAVTREE
     MyFloat stellar_lum[N_RT_FREQ_BINS];
+#ifdef CHIMES_STELLAR_FLUXES 
+    double chimes_stellar_lum_G0[CHIMES_LOCAL_UV_NBINS]; 
+    double chimes_stellar_lum_ion[CHIMES_LOCAL_UV_NBINS]; 
+    for (j = 0; j < CHIMES_LOCAL_UV_NBINS; j++) 
+      {
+	chimes_stellar_lum_G0[j] = 0.0; 
+	chimes_stellar_lum_ion[j] = 0.0; 
+      } 
+#endif 
 #endif
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
     MyFloat rt_source_lum_s[3];
@@ -1212,6 +1275,13 @@ void force_treeupdate_pseudos(int no)
             s[2] += (Nodes[p].u.d.mass * Nodes[p].u.d.s[2]);
 #ifdef RT_USE_GRAVTREE
             int k; for(k=0;k<N_RT_FREQ_BINS;k++) {stellar_lum[k] += (Nodes[p].stellar_lum[k]);}
+#ifdef CHIMES_STELLAR_FLUXES 
+	    for (k = 0; k < CHIMES_LOCAL_UV_NBINS; k++) 
+	      {
+		chimes_stellar_lum_G0[k] += Nodes[p].chimes_stellar_lum_G0[k]; 
+		chimes_stellar_lum_ion[k] += Nodes[p].chimes_stellar_lum_ion[k]; 
+	      }
+#endif 
 #endif
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
             double l_tot=0; for(k=0;k<N_RT_FREQ_BINS;k++) {l_tot += (Nodes[p].stellar_lum[k]);}
@@ -1341,6 +1411,13 @@ void force_treeupdate_pseudos(int no)
     Nodes[no].u.d.mass = mass;
 #ifdef RT_USE_GRAVTREE
     int k; for(k=0;k<N_RT_FREQ_BINS;k++) {Nodes[no].stellar_lum[k] = stellar_lum[k];}
+#ifdef CHIMES_STELLAR_FLUXES 
+    for (k = 0; k < CHIMES_LOCAL_UV_NBINS; k++) 
+      { 
+	Nodes[no].chimes_stellar_lum_G0[k] = chimes_stellar_lum_G0[k]; 
+	Nodes[no].chimes_stellar_lum_ion[k] = chimes_stellar_lum_ion[k]; 
+      } 
+#endif 
 #endif
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
     Nodes[no].rt_source_lum_s[0] = rt_source_lum_s[0];
@@ -1521,6 +1598,15 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #ifdef RT_USE_GRAVTREE
     double mass_stellarlum[N_RT_FREQ_BINS];
     int k_freq; for(k_freq=0;k_freq<N_RT_FREQ_BINS;k_freq++) {mass_stellarlum[k_freq]=0;}
+#ifdef CHIMES_STELLAR_FLUXES 
+    double chimes_mass_stellarlum_G0[CHIMES_LOCAL_UV_NBINS]; 
+    double chimes_mass_stellarlum_ion[CHIMES_LOCAL_UV_NBINS]; 
+    for (k_freq = 0; k_freq < CHIMES_LOCAL_UV_NBINS; k_freq++) 
+      {
+	chimes_mass_stellarlum_G0[k_freq] = 0.0; 
+	chimes_mass_stellarlum_ion[k_freq] = 0.0; 
+      }
+#endif
     double dx_stellarlum=0, dy_stellarlum=0, dz_stellarlum=0, sigma_eff=0;
     int valid_gas_particle_for_rt = 0;
 #ifdef RT_OTVET
@@ -1671,7 +1757,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif
 
     
-
+    
     
 #if defined(ADAPTIVE_GRAVSOFT_FORGAS) || defined(ADAPTIVE_GRAVSOFT_FORALL)
 #ifdef ADAPTIVE_GRAVSOFT_FORALL
@@ -1787,8 +1873,29 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 {
                     dx_stellarlum=dx; dy_stellarlum=dy; dz_stellarlum=dz;
                     double lum[N_RT_FREQ_BINS];
+#ifdef CHIMES_STELLAR_FLUXES 
+		    double chimes_lum_G0[CHIMES_LOCAL_UV_NBINS]; 
+		    double chimes_lum_ion[CHIMES_LOCAL_UV_NBINS]; 
+		    int active_check = rt_get_source_luminosity(no,sigma_eff,lum, chimes_lum_G0, chimes_lum_ion);
+#else 
                     int active_check = rt_get_source_luminosity(no,sigma_eff,lum);
+#endif 
                     int kf; for(kf=0;kf<N_RT_FREQ_BINS;kf++) {if(active_check) {mass_stellarlum[kf]=lum[kf];} else {mass_stellarlum[kf]=0;}}
+#ifdef CHIMES_STELLAR_FLUXES 
+		    for (kf = 0; kf < CHIMES_LOCAL_UV_NBINS; kf++) 
+		      { 
+			if (active_check) 
+			  {
+			    chimes_mass_stellarlum_G0[kf] = chimes_lum_G0[kf]; 
+			    chimes_mass_stellarlum_ion[kf] = chimes_lum_ion[kf]; 
+			  } 
+			else 
+			  {
+			    chimes_mass_stellarlum_G0[kf] = 0.0; 
+			    chimes_mass_stellarlum_ion[kf] = 0.0; 
+			  } 
+		      } 
+#endif 
                 }
 #endif
                 
@@ -1946,11 +2053,18 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                 NEAREST_XYZ(dx,dy,dz,-1);
 #endif
                 r2 = dx * dx + dy * dy + dz * dz;
-                
+             
 #ifdef RT_USE_GRAVTREE
                 if(valid_gas_particle_for_rt)	/* we have a (valid) gas particle as target */
                 {
                     int kf; for(kf=0;kf<N_RT_FREQ_BINS;kf++) {mass_stellarlum[kf] = nop->stellar_lum[kf];}
+#ifdef CHIMES_STELLAR_FLUXES 
+		    for (kf = 0; kf < CHIMES_LOCAL_UV_NBINS; kf++) 
+		      { 
+			chimes_mass_stellarlum_G0[kf] = nop->chimes_stellar_lum_G0[kf]; 
+			chimes_mass_stellarlum_ion[kf] = nop->chimes_stellar_lum_ion[kf]; 
+		      }
+#endif 
 #ifdef RT_SEPARATELY_TRACK_LUMPOS
                     dx_stellarlum = nop->rt_source_lum_s[0] - pos_x; dy_stellarlum = nop->rt_source_lum_s[1] - pos_y; dz_stellarlum = nop->rt_source_lum_s[2] - pos_z;
 #if defined(BOX_PERIODIC) && !defined(GRAVITY_NOT_PERIODIC)
@@ -2020,7 +2134,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #endif
 #endif // PMGRID //
                 
-                
+
 #ifdef NEIGHBORS_MUST_BE_COMPUTED_EXPLICITLY_IN_FORCETREE
                 {
                     double dx_nc = nop->center[0] - pos_x;
@@ -2046,7 +2160,8 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
                     }
                 }
 #endif
-                
+
+
                 if(errTol2)	/* check Barnes-Hut opening criterion */
                 {
                     if(nop->len * nop->len > r2 * errTol2)
@@ -2059,7 +2174,7 @@ int force_treeevaluate(int target, int mode, int *exportflag, int *exportnodecou
 #ifndef GRAVITY_HYBRID_OPENING_CRIT
                 else		/* check relative opening criterion */
 #else
-                if(!(All.Ti_Current == 0 && RestartFlag == 0))
+                if(!(All.Ti_Current == 0 && RestartFlag != 1))
 #endif		  
                 {
                     /* force node to open if we are within the gravitational softening length */
@@ -2710,7 +2825,7 @@ int force_treeevaluate_ewald_correction(int target, int mode, int *exportflag, i
 #ifndef GRAVITY_HYBRID_OPENING_CRIT
                 else		/* check relative opening criterion */
 #else
-                if(!(All.Ti_Current == 0 && RestartFlag == 0))
+                if(!(All.Ti_Current == 0 && RestartFlag != 1))
 #endif		  
                 {
                     if(mass * nop->len * nop->len > r2 * r2 * aold)
@@ -3165,7 +3280,7 @@ int force_treeevaluate_potential(int target, int mode, int *nexport, int *nsend_
 #ifndef GRAVITY_HYBRID_OPENING_CRIT
                 else		/* check relative opening criterion */
 #else
-                if(!(All.Ti_Current == 0 && RestartFlag == 0))		  
+                if(!(All.Ti_Current == 0 && RestartFlag != 1))		  
 #endif				  
                 {
                     

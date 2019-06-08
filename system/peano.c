@@ -123,7 +123,6 @@ void reorder_gas(void)
 	{
 	  Psource = P[i];
 	  SphPsource = SphP[i];
-
 	  idsource = Id[i];
 	  dest = Id[i];
 

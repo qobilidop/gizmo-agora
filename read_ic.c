@@ -184,7 +184,6 @@ void read_ic(char *fname)
         All.MassTable[4] = 0;
     }
 #endif
-
     
     
     u_init = (1.0 / GAMMA_MINUS1) * (BOLTZMANN / PROTONMASS) * All.InitGasTemp;
@@ -277,7 +276,9 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
             
         case IO_ID:		/* particle ID */
             for(n = 0; n < pc; n++)
+	      {
                 P[offset + n].ID = *ip++;
+	      }
             break;
             
             
@@ -285,7 +286,9 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
             if(RestartFlag == 2)
             {
                 for(n = 0; n < pc; n++)
+		  {
                     P[offset + n].ID_child_number = *ip++;
+		  }
             }
             break;
 
@@ -423,6 +426,7 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
 #ifdef BLACK_HOLES
             for(n = 0; n < pc; n++)
                 P[offset + n].BH_Mdot = *fp++;
+
 #endif
             break;
             
@@ -432,7 +436,7 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
                 P[offset + n].BH_CountProgs = *ip_int++;
 #endif
             break;
-                        
+            
         case IO_EOSTEMP:
 #ifdef EOS_CARRIES_TEMPERATURE
             for(n = 0; n < pc; n++)
@@ -468,7 +472,7 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
                     SphP[offset + n].ParticleVel[k] = *fp++;
 #endif
             break;
-
+            
             
         case IO_RADGAMMA:
 #ifdef RADTRANSFER
@@ -515,6 +519,7 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
 #endif
             break;
 
+
         case IO_COSMICRAY_ENERGY:
             break;
 
@@ -540,6 +545,8 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
         case IO_AGS_NGBS:
         case IO_AGS_RHO:
         case IO_AGS_QPT:
+        case IO_AGS_PSI_RE:
+        case IO_AGS_PSI_IM:
             break;
 
             
@@ -611,7 +618,15 @@ void empty_read_buffer(enum iofields blocknr, int offset, int pc, int type)
             
             //ptorrey
             break;
-            
+
+        case IO_TURB_DYNAMIC_COEFF:
+#ifdef TURB_DIFF_DYNAMIC
+            for (n = 0; n < pc; n++) {
+                SphP[offset + n].TD_DynDiffCoeff = *fp++;
+            }
+#endif
+            break;
+
         case IO_LASTENTRY:
             endrun(220);
             break;
@@ -914,6 +929,12 @@ void read_file(char *fname, int readTask, int lastTask)
             if(blocknr == IO_HSMS)
                 continue;
             
+#ifdef TURB_DIFF_DYNAMIC
+            if (RestartFlag == 0 && blocknr == IO_TURB_DYNAMIC_COEFF) {
+                continue;
+            }
+#endif
+
             if(ThisTask == readTask)
             {
                 get_dataset_name(blocknr, buf);

@@ -78,7 +78,6 @@ ifeq (FIRE_PHYSICS_DEFAULTS,$(findstring FIRE_PHYSICS_DEFAULTS,$(CONFIGVARS)))  
 endif
 
 
-
 CC       = mpicc        # sets the C-compiler (default)
 CXX       = mpiCC       # sets the C++-compiler (default)
 
@@ -103,6 +102,7 @@ endif
 endif
 
 # we only need fftw if PMGRID is turned on
+ifneq (USE_FFTW3, $(findstring USE_FFTW3, $(CONFIGVARS)))
 ifeq (PMGRID, $(findstring PMGRID, $(CONFIGVARS)))
 ifeq (NOTYPEPREFIX_FFTW,$(findstring NOTYPEPREFIX_FFTW,$(CONFIGVARS)))  # fftw installed without type prefix?
   FFTW_LIBNAMES = -lrfftw_mpi -lfftw_mpi -lrfftw -lfftw
@@ -128,7 +128,26 @@ endif
 else
   FFTW_LIBNAMES = #
 endif
-
+endif
+else # use FFTW3 instead of FFTW2.?
+ifeq (PMGRID, $(findstring PMGRID, $(CONFIGVARS)))
+ifeq (DOUBLEPRECISION_FFTW,$(findstring DOUBLEPRECISION_FFTW,$(CONFIGVARS)))  # test for double precision libraries
+  FFTW_LIBNAMES = -lfftw3_mpi -lfftw3
+else #single precision 
+  FFTW_LIBNAMES = -lfftw3f_mpi -lfftw3f
+endif
+else 
+# or if TURB_DRIVING_SPECTRUMGRID is activated
+ifeq (TURB_DRIVING_SPECTRUMGRID, $(findstring TURB_DRIVING_SPECTRUMGRID, $(CONFIGVARS)))
+ifeq (DOUBLEPRECISION_FFTW,$(findstring DOUBLEPRECISION_FFTW,$(CONFIGVARS)))  # test for double precision libraries
+  FFTW_LIBNAMES = -lfftw3_mpi -lfftw3
+else #single precision  
+  FFTW_LIBNAMES = -lfftw3f_mpi -lfftw3f
+endif
+else 
+  FFTW_LIBNAMES = #
+endif
+endif
 endif
 
 
@@ -182,11 +201,14 @@ OPT     += -DUSE_MPI_IN_PLACE
 endif
 
 
+
 ifeq ($(SYSTYPE),"Stampede2")
 CC       =  mpicc
 CXX      =  mpic++
 FC       =  mpif90 -nofor_main
-OPTIMIZE = -O3 -xMIC-AVX512 -ipo -funroll-loops -no-prec-div -fp-model fast=2  # speed
+OPTIMIZE = -O3 $(TACC_VEC_FLAGS) -ipo -funroll-loops -no-prec-div -fp-model fast=2
+## above is preferred, $(TACC_VEC_FLAGS) automatically incorporates the TACC preferred flags for both KNL or SKX nodes
+#OPTIMIZE = -O3 -xMIC-AVX512 -ipo -funroll-loops -no-prec-div -fp-model fast=2  # (depracated, -xMIC-AVX512 is specific to the KNL nodes)
 OPTIMIZE += -g -Wall # compiler warnings
 #OPTIMIZE += -parallel -openmp  # openmp (comment out this line if OPENMP not used)
 ifeq (OPENMP,$(findstring OPENMP,$(CONFIGVARS)))
@@ -207,7 +229,8 @@ MPICHLIB =
 OPT     += -DUSE_MPI_IN_PLACE
 ##
 ## module load TACC intel impi hdf5 gsl fftw2
-## note the KNL system has a large number of slow cores, so some changes to 'usual' compilation parameters are advised:
+##  - note you cann choose to use FFTW3 now instead of FFTW2, but you will need to load that module and change the compiler link appropriately
+## note is you are using the KNL system it has a large number of slow cores, so some changes to 'usual' compilation parameters are advised:
 ##  - recommend running with ~16 mpi tasks/node. higher [32 or 64] usually involves a performance hit unless the problem is more scale-able;
 ##     use the remaining nodes in OPENMP. Do not use >64 MPI tasks/node [need ~4 cores free for management] and do not use >2 threads/core
 ##     [should never have >128 threads/node] -- the claimed 4 hardware threads/core includes non-FP threads which will severely slow performance.
@@ -218,6 +241,7 @@ OPT     += -DUSE_MPI_IN_PLACE
 ##  - run job with "tacc_affinity" on.
 ##
 endif
+
 
 
 
@@ -387,6 +411,7 @@ endif
 #-----------------------------------------------------------------------------
 
 
+
 #----------------------------------------------------------------------------------------------
 ifeq ($(SYSTYPE),"SciNet")
 CC       =  mpicc     # sets the C-compiler
@@ -522,6 +547,7 @@ endif
 
 
 
+
 #----------------------------------------------------------------------------------------------
 ifeq ($(SYSTYPE),"Darter")
 CC       =  cc
@@ -558,8 +584,12 @@ CXX      =  mpic++
 FC       =  $(CC)
 OPTIMIZE = -O2 -xhost -ipo -funroll-loops -no-prec-div -fp-model fast=2
 ifeq (OPENMP,$(findstring OPENMP,$(CONFIGVARS)))
-OPTIMIZE += -parallel -openmp  # openmp required compiler flags
+OPTIMIZE += -parallel -openmp # openmp required compiler flags 
 endif
+ifeq (CHIMES,$(findstring CHIMES,$(CONFIGVARS)))
+CHIMESINCL = -I/home/ajr882/sundials/include  
+CHIMESLIBS = -L/home/ajr882/sundials/lib -lsundials_cvode -lsundials_kinsol -lsundials_nvecserial 
+endif 
 GMP_INCL = #
 GMP_LIBS = #
 MKL_INCL = -I$(MKLROOT)/include
@@ -570,12 +600,46 @@ FFTW_INCL= -I/projects/b1026/pascal/software/fftw/2.1.5-mvp/include
 FFTW_LIBS= -L/projects/b1026/pascal/software/fftw/2.1.5-mvp/lib
 HDF5INCL = -I/projects/b1026/pascal/software/hdf5/1.8.12/include -DH5_USE_16_API
 HDF5LIB  = -L/projects/b1026/pascal/software/hdf5/1.8.12/lib -lhdf5 -lz
-MPICHLIB = -lmpich
+MPICHLIB = -lmpich 
 OPT     += -DUSE_MPI_IN_PLACE
 #### modules to load:
 #module load mpi/mvapich2-intel2013.2
 #module use /projects/b1026/pascal/software/modules
 #module load hdf5/1.8.12.1 gsl/1.16 fftw/2.1.5-mvp
+endif
+
+
+#----------------------------------------------------------------------------------------------
+ifeq ($(SYSTYPE),"Quest-intel")
+CC       =  mpicc
+CXX      =  mpic++
+FC       =  $(CC)
+OPTIMIZE = -O2 -xhost -ipo -funroll-loops -no-prec-div -fp-model fast=2
+ifeq (OPENMP,$(findstring OPENMP,$(CONFIGVARS)))
+OPTIMIZE += -parallel -openmp -mt_mpi 
+endif
+ifeq (CHIMES,$(findstring CHIMES,$(CONFIGVARS)))
+CHIMESINCL = -I/home/ajr882/sundials/include  
+CHIMESLIBS = -L/home/ajr882/sundials/lib -lsundials_cvode -lsundials_kinsol -lsundials_nvecserial 
+endif 
+GMP_INCL = #
+GMP_LIBS = #
+MKL_INCL = -I$(MKLROOT)/include
+MKL_LIBS = -L$(MKLROOT)/lib/intel64 -lm -lmkl_core -lmkl_sequential -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_blacs_intelmpi_lp64
+GSL_INCL = 
+GSL_LIBS = 
+FFTW_INCL= -I/home/ajr882/libraries/fftw-2.1.5_install/include 
+FFTW_LIBS= -L/home/ajr882/libraries/fftw-2.1.5_install/lib 
+HDF5INCL = -DH5_USE_16_API 
+HDF5LIB  = -lhdf5 -lz
+MPICHLIB = 
+OPT     += -DUSE_MPI_IN_PLACE
+#### modules to load:
+#module load intel/2013.2
+#module load mpi/intel-mpi-4.1.0
+#module load hdf5/1.8.12-serial
+#module load gsl/1.16-intel
+#module load fftw/2.1.5-intel
 endif
 
 
@@ -681,6 +745,7 @@ endif
 ##
 
 
+#------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------
 ifeq ($(SYSTYPE),"Mira")
 ifeq (OPENMP,$(findstring OPENMP,$(CONFIGVARS)))
@@ -740,7 +805,6 @@ endif
 
 
 
-
 #----------------------------------------------------------------------------------------------
 ifeq (Pleiades,$(findstring Pleiades,$(SYSTYPE)))
 CC       =  icc -lmpi
@@ -764,7 +828,7 @@ GSL_LIBS = -L$(MATHLIBS)/lib
 FFTW_INCL= -I$(FFTW2_HOME)/include
 FFTW_LIBS= -L$(FFTW2_HOME)/lib
 HDF5INCL = -DH5_USE_16_API
-HDF5LIB  = -lhdf5 -lz -L/nasa/szip/2.1/lib -lsz
+HDF5LIB  = -lhdf5 -lz -L/nasa/szip/2.1.1/lib -lsz
 MPICHLIB =
 OPT     += -DUSE_MPI_IN_PLACE
 endif
@@ -985,6 +1049,7 @@ OBJS	+= $(GRAVITY_OBJS) $(HYDRO_OBJS) $(SYSTEM_OBJS)
 OBJS	+= $(L3_OBJS)
 
 INCL    += allvars.h proto.h gravity/forcetree.h domain.h system/myqsort.h kernel.h eos/eos.h Makefile \
+	   gravity/myfftw3.h
 
 
 ifeq (GALSF_SUBGRID_WINDS,$(findstring GALSF_SUBGRID_WINDS,$(CONFIGVARS)))
@@ -1057,13 +1122,16 @@ ifeq (COOL_GRACKLE,$(findstring COOL_GRACKLE,$(CONFIGVARS)))
 OBJS    += cooling/grackle.o
 endif
 
+ifeq (CHIMES,$(findstring CHIMES,$(CONFIGVARS)))
+OBJS    += cooling/chimes/chimes.o cooling/chimes/cooling.o cooling/chimes/init_chimes.o cooling/chimes/init_chimes_parallel.o cooling/chimes/interpol.o cooling/chimes/optimise.o cooling/chimes/rate_coefficients.o cooling/chimes/rate_equations.o cooling/chimes/set_rates.o 
+endif
+
 ifeq (EOS_HELMHOLTZ,$(findstring EOS_HELMHOLTZ,$(CONFIGVARS)))
 OBJS    += eos/eos_interface.o
 INCL    += eos/helmholtz/helm_wrap.h
 FOBJS   += eos/helmholtz/helm_impl.o eos/helmholtz/helm_wrap.o
 FINCL   += eos/helmholtz/helm_const.dek eos/helmholtz/helm_implno.dek eos/helmholtz/helm_table_storage.dek eos/helmholtz/helm_vector_eos.dek
 endif
-
 
 ifeq (IMPOSE_PINNING,$(findstring IMPOSE_PINNING,$(CONFIGVARS)))
 OBJS	+= system/pinning.o
@@ -1084,6 +1152,10 @@ OBJS	+= subfind/subfind.o subfind/subfind_vars.o subfind/subfind_collective.o su
 INCL	+= subfind/subfind.h
 endif
 
+ifeq (TURB_DIFF_DYNAMIC,$(findstring TURB_DIFF_DYNAMIC,$(CONFIGVARS)))
+OBJS += turb/dynamic_diffusion.o turb/dynamic_diffusion_velocities.o
+endif
+
 ifeq (DM_SIDM,$(findstring DM_SIDM,$(CONFIGVARS)))
 OBJS    +=  sidm/sidm_core.o 
 endif
@@ -1098,6 +1170,10 @@ OBJS	+= turb/turb_driving.o turb/turb_powerspectra.o
 endif
 
 CFLAGS = $(OPTIONS) $(GSL_INCL) $(FFTW_INCL) $(HDF5INCL) $(GMP_INCL) $(GRACKLEINCL)
+
+ifeq (CHIMES,$(findstring CHIMES,$(CONFIGVARS))) 
+CFLAGS += $(CHIMESINCL) 
+endif 
 
 ifeq (VIP,$(findstring VIP,$(CONFIGVARS)))
 FFLAGS = $(FOPTIONS)
@@ -1115,7 +1191,11 @@ endif
 FFTW = $(FFTW_LIBS)  $(FFTW_LIBNAMES) 
 
 
-LIBS   = -lm $(HDF5LIB) -g $(MPICHLIB) $(GSL_LIBS) -lgsl -lgslcblas $(FFTW) $(GRACKLELIBS)
+LIBS   = $(HDF5LIB) -g $(MPICHLIB) $(GSL_LIBS) -lgsl -lgslcblas $(FFTW) -lm $(GRACKLELIBS)
+
+ifeq (CHIMES,$(findstring CHIMES,$(CONFIGVARS))) 
+LIBS += $(CHIMESLIBS) 
+endif 
 
 ifeq (PTHREADS_NUM_THREADS,$(findstring PTHREADS_NUM_THREADS,$(CONFIGVARS))) 
 LIBS   +=  -lpthread
