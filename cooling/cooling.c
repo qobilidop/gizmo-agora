@@ -170,7 +170,7 @@ double DoCooling(double u_old, double rho, double dt, double ne_guess, int targe
 #ifdef COOL_GRACKLE
 #ifndef COOLING_OPERATOR_SPLIT
     /* call grackle with hydro heating */
-    double udot = SphP[target].DtInternalEnergy/ (All.HubbleParam * All.UnitEnergy_in_cgs / (All.UnitMass_in_g * All.UnitTime_in_s) * (PROTONMASS/HYDROGEN_MASSFRAC)) * rho;
+    double udot = SphP[target].DtInternalEnergy / (All.HubbleParam * All.UnitEnergy_in_cgs / (All.UnitMass_in_g * All.UnitTime_in_s) * (PROTONMASS/HYDROGEN_MASSFRAC)); // in erg/s/g as required by Grackle specific_heating_rate
     u = CallGrackle(u_old, rho, dt, ne_guess, udot, target, 0);
 #else
     /* with full operator splitting we just call grackle without hydro heating. note this is usually fine,
