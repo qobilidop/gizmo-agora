@@ -36,7 +36,8 @@ double CallGrackle(double u_old, double rho, double dt, double ne_guess, double 
     my_fields.grid_dimension = malloc(my_fields.grid_rank * sizeof(int));
     my_fields.grid_start = malloc(my_fields.grid_rank * sizeof(int));
     my_fields.grid_end = malloc(my_fields.grid_rank * sizeof(int));
-    for (int i = 0; i < my_fields.grid_rank; i++) {
+    int i;
+    for (i = 0; i < my_fields.grid_rank; i++) {
         my_fields.grid_dimension[i] = 1;
         my_fields.grid_start[i] = 0;
         my_fields.grid_end[i] = 0;
