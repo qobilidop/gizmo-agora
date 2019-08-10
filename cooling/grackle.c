@@ -10,6 +10,10 @@
 #include <grackle.h>
 #define ENDRUNVAL 91234
 
+/*
+ * This file contains Grackle related functions. Grackle 3.0 API is assumed.
+ */
+
 //
 // 'mode' -- tells the routine what to do
 //
@@ -37,7 +41,6 @@ double CallGrackle(double u_old, double rho, double dt, double ne_guess, double 
         my_fields.grid_start[i] = 0;
         my_fields.grid_end[i] = 0;
     }
-    my_fields.grid_dx = 0.0; // used only for H2 self-shielding approximation
 
     my_fields.density          = malloc(sizeof(gr_float));
     my_fields.internal_energy  = malloc(sizeof(gr_float));
@@ -256,7 +259,6 @@ void InitGrackle(void)
     grackle_data->radiative_transfer_coupled_rate_solver = 0;
     grackle_data->radiative_transfer_intermediate_step = 0;
     grackle_data->radiative_transfer_hydrogen_only = 0;
-    grackle_data->H2_self_shielding = 0;
     grackle_data->self_shielding_method = 0;
 
     if(ThisTask == 0)
